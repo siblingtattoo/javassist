@@ -32,7 +32,7 @@ public class Handler extends Expr {
      */
     protected Handler(ExceptionTable et, int nth,
                       CodeIterator it, CtClass declaring, MethodInfo m) {
-        super(et.handlerPc(nth), it, declaring, m);
+        super(et.handlerPc(nth), -1, it, declaring, m);
         etable = et;
         index = nth;
     }
@@ -135,6 +135,9 @@ public class Handler extends Expr {
             iterator.append(b.getExceptionTable(), pos);
             etable.setHandlerPc(index, pos);
         }
+		catch (BadBytecode e) {
+			throw new CannotCompileException(e);
+		}
         catch (NotFoundException e) {
             throw new CannotCompileException(e);
         }

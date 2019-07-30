@@ -27,9 +27,9 @@ public class Instanceof extends Expr {
     /**
      * Undocumented constructor.  Do not use; internal-use only.
      */
-    protected Instanceof(int pos, CodeIterator i, CtClass declaring,
+    protected Instanceof(int pos, int adjustedPos, CodeIterator i, CtClass declaring,
                          MethodInfo m) {
-        super(pos, i, declaring, m);
+        super(pos, adjustedPos, i, declaring, m);
     }
 
     /**

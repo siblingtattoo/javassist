@@ -26,9 +26,9 @@ import javassist.compiler.ast.ASTList;
 public class FieldAccess extends Expr {
     int opcode;
 
-    protected FieldAccess(int pos, CodeIterator i, CtClass declaring,
+    protected FieldAccess(int pos, int adjustedPos, CodeIterator i, CtClass declaring,
                           MethodInfo m, int op) {
-        super(pos, i, declaring, m);
+        super(pos, adjustedPos, i, declaring, m);
         opcode = op;
     }
 
