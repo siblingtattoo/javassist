@@ -83,7 +83,7 @@
       </roles>
       <timezone>0</timezone>
     </developer>
-    
+
     <developer>
       <id>scottmarlow</id>
       <name>Scott Marlow</name>
@@ -100,7 +100,7 @@
   </developers>
 
   <distributionManagement>
-  <!--  
+  <!--
       You need entries in your .m2/settings.xml like this:
    <servers>
     <server>
@@ -114,9 +114,9 @@
        <password>password</password>
     </server>
   </servers>
-  
+
   To deploy a snapshot, you need to run
-  
+
   mvn deploy -Dversion=3.x.y-SNAPSHOT
 
   To deploy a release you need to change the version to 3.x.y.GA and run
@@ -141,7 +141,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.2</version>
+        <version>3.8.0</version>
         <configuration>
           <source>1.6</source>
           <target>1.6</target>
@@ -218,7 +218,7 @@
           <instructions>
             <Bundle-SymbolicName>${project.artifactId}</Bundle-SymbolicName>
             <Bundle-Version>${project.version}</Bundle-Version>
-            <Import-Package>!com.sun.jdi.*</Import-Package>	
+            <Import-Package>!com.sun.jdi.*</Import-Package>
             <Export-Package>!com.sun.jdi.*,javassist.*;version="${project.version}"</Export-Package>
           </instructions>
         </configuration>
@@ -312,4 +312,3 @@
     </dependency>
   </dependencies>
 </project>
-

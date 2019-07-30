@@ -1189,7 +1189,7 @@ public class ClassPool {
 
     public String getResource(String classname) {
         return source.getResource(classname);
-
+    }
     /**
      * Defines a new package.  If the package is already defined, this method
      * performs nothing.

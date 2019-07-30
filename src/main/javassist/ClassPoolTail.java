@@ -196,9 +196,11 @@ final class JarClassPath implements ClassPath {
 
 final class ClassPoolTail {
     protected ClassPathList pathList;
+    private Hashtable packages;         // should be synchronized.
 
     public ClassPoolTail() {
         pathList = null;
+        packages = new Hashtable();
     }
 
     public String toString() {
@@ -284,7 +286,13 @@ final class ClassPoolTail {
 
         return new DirClassPath(pathname);
     }
-
+    /**
+     * You can record "System" so that java.lang.System can be quickly
+     * found although "System" is not a package name.
+     */
+    public void recordInvalidClassName(String name) {
+        packages.put(name, name);
+    }
     /**
      * This method does not close the output stream.
      */
@@ -333,6 +341,8 @@ final class ClassPoolTail {
     InputStream openClassfile(String classname)
         throws NotFoundException
     {
+        if (packages.get(classname) != null)
+            return null;    // not found
         ClassPathList list = pathList;
         InputStream ins = null;
         NotFoundException error = null;
@@ -366,6 +376,8 @@ final class ClassPoolTail {
      * @return null if the class file could not be found.
      */
     public URL find(String classname) {
+        if (packages.get(classname) != null)
+            return null;
         ClassPathList list = pathList;
         URL url = null;
         while (list != null) {
