@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,13 +16,34 @@
 
 package javassist.compiler;
 
+import javassist.ClassPool;
 import javassist.CtClass;
 import javassist.CtField;
-import javassist.ClassPool;
 import javassist.Modifier;
 import javassist.NotFoundException;
-import javassist.compiler.ast.*;
-import javassist.bytecode.*;
+import javassist.bytecode.FieldInfo;
+import javassist.bytecode.MethodInfo;
+import javassist.bytecode.Opcode;
+import javassist.compiler.ast.ASTList;
+import javassist.compiler.ast.ASTree;
+import javassist.compiler.ast.ArrayInit;
+import javassist.compiler.ast.AssignExpr;
+import javassist.compiler.ast.BinExpr;
+import javassist.compiler.ast.CallExpr;
+import javassist.compiler.ast.CastExpr;
+import javassist.compiler.ast.CondExpr;
+import javassist.compiler.ast.Declarator;
+import javassist.compiler.ast.DoubleConst;
+import javassist.compiler.ast.Expr;
+import javassist.compiler.ast.InstanceOfExpr;
+import javassist.compiler.ast.IntConst;
+import javassist.compiler.ast.Keyword;
+import javassist.compiler.ast.Member;
+import javassist.compiler.ast.NewExpr;
+import javassist.compiler.ast.StringL;
+import javassist.compiler.ast.Symbol;
+import javassist.compiler.ast.Variable;
+import javassist.compiler.ast.Visitor;
 
 public class TypeChecker extends Visitor implements Opcode, TokenId {
     static final String javaLangObject = "java.lang.Object";
@@ -138,6 +160,7 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
         return resolver.resolveJvmClassName(jvmName);
     }
 
+    @Override
     public void atNewExpr(NewExpr expr) throws CompileError {
         if (expr.isArray())
             atNewArrayExpr(expr);
@@ -176,6 +199,7 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
         }
     }
 
+    @Override
     public void atArrayInit(ArrayInit init) throws CompileError {
         ASTList list = init;
         while (list != null) {
@@ -189,6 +213,7 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
     protected void atMultiNewArray(int type, ASTList classname, ASTList size)
         throws CompileError
     {
+        @SuppressWarnings("unused")
         int count, dim;
         dim = size.length();
         for (count = 0; size != null; size = size.tail()) {
@@ -208,6 +233,7 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
             className = null;
     }
 
+    @Override
     public void atAssignExpr(AssignExpr expr) throws CompileError {
         // =, %=, &=, *=, /=, +=, -=, ^=, |=, <<=, >>=, >>>=
         int op = expr.getOperator();
@@ -278,11 +304,13 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
         className = cname;
     }
 
+    @Override
     public void atCondExpr(CondExpr expr) throws CompileError {
         booleanExpr(expr.condExpr());
         expr.thenExpr().accept(this);
         int type1 = exprType;
         int dim1 = arrayDim;
+        @SuppressWarnings("unused")
         String cname1 = className;
         expr.elseExpr().accept(this);
 
@@ -301,6 +329,7 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
      * (if the original is not '+') and sets the new expression to the
      * left-hand-side expression and null to the right-hand-side expression. 
      */
+    @Override
     public void atBinExpr(BinExpr expr) throws CompileError {
         int token = expr.getOperator();
         int k = CodeGen.lookupBinOp(token);
@@ -383,10 +412,8 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
             className = "java/lang/StringBuffer";
             return makeAppendCall(makeAppendCall(e, left), right);
         }
-        else {
-            computeBinExprType(expr, '+', type1);
-            return null;
-        }
+        computeBinExprType(expr, '+', type1);
+        return null;
     }
 
     private boolean isConstant(BinExpr expr, int op, ASTree left,
@@ -405,13 +432,11 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
 
         if (newExpr == null)
             return false;       // not a constant expression
-        else {
-            expr.setOperator('+');
-            expr.setOprand1(newExpr);
-            expr.setOprand2(null);
-            newExpr.accept(this);   // for setting exprType, arrayDim, ...
-            return true;
-        }
+        expr.setOperator('+');
+        expr.setOprand1(newExpr);
+        expr.setOprand2(null);
+        newExpr.accept(this);   // for setting exprType, arrayDim, ...
+        return true;
     }
 
     /* CodeGen.atSwitchStmnt() also calls stripPlusExpr().
@@ -501,7 +526,7 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
         else
             insertCast(expr, type1, type2);
 
-        if (CodeGen.isP_INT(exprType))
+        if (CodeGen.isP_INT(exprType) && exprType != BOOLEAN)
             exprType = INT;         // type1 may be BYTE, ...
     }
 
@@ -541,6 +566,7 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
             exprType = type1;
     }
 
+    @Override
     public void atCastExpr(CastExpr expr) throws CompileError {
         String cname = resolveClassName(expr.getClassName());
         expr.getOprand().accept(this);
@@ -549,12 +575,14 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
         className = cname;
     }
 
+    @Override
     public void atInstanceOfExpr(InstanceOfExpr expr) throws CompileError {
         expr.getOprand().accept(this);
         exprType = BOOLEAN;
         arrayDim = 0;
     }
 
+    @Override
     public void atExpr(Expr expr) throws CompileError {
         // array access, member access,
         // (unary) +, (unary) -, ++, --, !, ~
@@ -564,15 +592,21 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
         if (token == '.') {
             String member = ((Symbol)expr.oprand2()).get();
             if (member.equals("length"))
-                atArrayLength(expr);
-            else if (member.equals("class"))                
+                try {
+                    atArrayLength(expr);
+                }
+                catch (NoFieldException nfe) {
+                    // length might be a class or package name.
+                    atFieldRead(expr);
+                }
+            else if (member.equals("class"))
                 atClassObject(expr);  // .class
             else
                 atFieldRead(expr);
         }
         else if (token == MEMBER) {     // field read
             String member = ((Symbol)expr.oprand2()).get();
-            if (member.equals("class"))                
+            if (member.equals("class"))
                 atClassObject(expr);  // .class
             else
                 atFieldRead(expr);
@@ -622,6 +656,7 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
         return true;
     }
 
+    @Override
     public void atCallExpr(CallExpr expr) throws CompileError {
         String mname = null;
         CtClass targetClass = null;
@@ -649,28 +684,34 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
                                                false);
             else if (op == '.') {
                 ASTree target = e.oprand1();
-                try {
-                    target.accept(this);
-                }
-                catch (NoFieldException nfe) {
-                    if (nfe.getExpr() != target)
-                        throw nfe;
+                String classFollowedByDotSuper = isDotSuper(target);
+                if (classFollowedByDotSuper != null)
+                    targetClass = MemberResolver.getSuperInterface(thisClass,
+                                                        classFollowedByDotSuper);
+                else {
+                    try {
+                        target.accept(this);
+                    }
+                    catch (NoFieldException nfe) {
+                        if (nfe.getExpr() != target)
+                            throw nfe;
 
-                    // it should be a static method.
-                    exprType = CLASS;
-                    arrayDim = 0;
-                    className = nfe.getField(); // JVM-internal
-                    e.setOperator(MEMBER);
-                    e.setOprand1(new Symbol(MemberResolver.jvmToJavaName(
-                                                            className)));
-                }
+                        // it should be a static method.
+                        exprType = CLASS;
+                        arrayDim = 0;
+                        className = nfe.getField(); // JVM-internal
+                        e.setOperator(MEMBER);
+                        e.setOprand1(new Symbol(MemberResolver.jvmToJavaName(
+                                                                className)));
+                    }
 
-                if (arrayDim > 0)
-                    targetClass = resolver.lookupClass(javaLangObject, true);
-                else if (exprType == CLASS /* && arrayDim == 0 */)
-                    targetClass = resolver.lookupClassByJvmName(className);
-                else
-                    badMethod();
+                    if (arrayDim > 0)
+                        targetClass = resolver.lookupClass(javaLangObject, true);
+                    else if (exprType == CLASS /* && arrayDim == 0 */)
+                        targetClass = resolver.lookupClassByJvmName(className);
+                    else
+                        badMethod();
+                }
             }
             else
                 badMethod();
@@ -685,6 +726,26 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
 
     private static void badMethod() throws CompileError {
         throw new CompileError("bad method");
+    }
+
+    /**
+     * Returns non-null if target is something like Foo.super
+     * for accessing the default method in an interface.
+     * Otherwise, null.
+     *
+     * @return the class name followed by {@code .super} or null.
+     */
+    static String isDotSuper(ASTree target) {
+        if (target instanceof Expr) {
+            Expr e = (Expr)target;
+            if (e.getOperator() == '.') {
+                ASTree right = e.oprand2();
+                if (right instanceof Keyword && ((Keyword)right).get() == SUPER)
+                    return ((Symbol)e.oprand1()).get();
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -706,7 +767,7 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
                                     mname, types, dims, cnames);
         if (found == null) {
             String clazz = targetClass.getName();
-            String signature = argTypesToString(types, dims, cnames); 
+            String signature = argTypesToString(types, dims, cnames);
             String msg;
             if (mname.equals(MethodInfo.nameInit))
                 msg = "cannot find constructor " + clazz + signature;
@@ -863,7 +924,7 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
                  * often inconvenient, this compiler allows it.  The following
                  * code is for that.
                  */
-                ASTree oprnd1 = e.oprand1(); 
+                ASTree oprnd1 = e.oprand1();
                 if (oprnd1 instanceof Symbol)
                     return fieldAccess2(e, ((Symbol)oprnd1).get());
 
@@ -892,6 +953,9 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
 
     public void atArrayLength(Expr expr) throws CompileError {
         expr.oprand1().accept(this);
+        if (arrayDim == 0)
+            throw new NoFieldException("length", expr);
+
         exprType = INT;
         arrayDim = 0;
     }
@@ -948,10 +1012,12 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
             exprType = INT;
     }
 
+    @Override
     public void atMember(Member mem) throws CompileError {
         atFieldRead(mem);
     }
 
+    @Override
     public void atVariable(Variable v) throws CompileError {
         Declarator d = v.getDeclarator();
         exprType = d.getType();
@@ -959,6 +1025,7 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
         className = d.getClassName();
     }
 
+    @Override
     public void atKeyword(Keyword k) throws CompileError {
         arrayDim = 0;
         int token = k.get();
@@ -976,19 +1043,21 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
             if (token == THIS)
                 className = getThisName();
             else
-                className = getSuperName();             
+                className = getSuperName();
             break;
         default :
             fatal();
         }
     }
 
+    @Override
     public void atStringL(StringL s) throws CompileError {
         exprType = CLASS;
         arrayDim = 0;
         className = jvmJavaLangString;
     }
 
+    @Override
     public void atIntConst(IntConst i) throws CompileError {
         arrayDim = 0;
         int type = i.getType();
@@ -998,6 +1067,7 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
             exprType = LONG;
     }
 
+    @Override
     public void atDoubleConst(DoubleConst d) throws CompileError {
         arrayDim = 0;
         if (d.getType() == DoubleConstant)

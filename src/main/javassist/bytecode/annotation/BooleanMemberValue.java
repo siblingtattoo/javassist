@@ -5,7 +5,8 @@
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -14,10 +15,11 @@
  */
 package javassist.bytecode.annotation;
 
-import javassist.ClassPool;
-import javassist.bytecode.ConstPool;
 import java.io.IOException;
 import java.lang.reflect.Method;
+
+import javassist.ClassPool;
+import javassist.bytecode.ConstPool;
 
 /**
  * Boolean constant value.
@@ -57,11 +59,13 @@ public class BooleanMemberValue extends MemberValue {
         setValue(false);
     }
 
+    @Override
     Object getValue(ClassLoader cl, ClassPool cp, Method m) {
-        return new Boolean(getValue());
+        return Boolean.valueOf(getValue());
     }
 
-    Class getType(ClassLoader cl) {
+    @Override
+    Class<?> getType(ClassLoader cl) {
         return boolean.class;
     }
 
@@ -82,6 +86,7 @@ public class BooleanMemberValue extends MemberValue {
     /**
      * Obtains the string representation of this object.
      */
+    @Override
     public String toString() {
         return getValue() ? "true" : "false";
     }
@@ -89,6 +94,7 @@ public class BooleanMemberValue extends MemberValue {
     /**
      * Writes the value.
      */
+    @Override
     public void write(AnnotationsWriter writer) throws IOException {
         writer.constValueIndex(getValue());
     }
@@ -96,6 +102,7 @@ public class BooleanMemberValue extends MemberValue {
     /**
      * Accepts a visitor.
      */
+    @Override
     public void accept(MemberValueVisitor visitor) {
         visitor.visitBooleanMemberValue(this);
     }

@@ -5,7 +5,8 @@
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -14,11 +15,12 @@
  */
 package javassist.bytecode.annotation;
 
-import javassist.ClassPool;
-import javassist.bytecode.ConstPool;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
+
+import javassist.ClassPool;
+import javassist.bytecode.ConstPool;
 
 /**
  * Array member.
@@ -50,6 +52,7 @@ public class ArrayMemberValue extends MemberValue {
         values = null;
     }
 
+    @Override
     Object getValue(ClassLoader cl, ClassPool cp, Method method)
         throws ClassNotFoundException
     {
@@ -58,7 +61,7 @@ public class ArrayMemberValue extends MemberValue {
                         "no array elements found: " + method.getName());
 
         int size = values.length;
-        Class clazz;
+        Class<?> clazz;
         if (type == null) {
             clazz = method.getReturnType().getComponentType();
             if (clazz == null || size > 0)
@@ -75,7 +78,8 @@ public class ArrayMemberValue extends MemberValue {
         return a;
     }
 
-    Class getType(ClassLoader cl) throws ClassNotFoundException {
+    @Override
+    Class<?> getType(ClassLoader cl) throws ClassNotFoundException {
         if (type == null)
             throw new ClassNotFoundException("no array type specified");
 
@@ -111,6 +115,7 @@ public class ArrayMemberValue extends MemberValue {
     /**
      * Obtains the string representation of this object.
      */
+    @Override
     public String toString() {
         StringBuffer buf = new StringBuffer("{");
         if (values != null) {
@@ -128,8 +133,9 @@ public class ArrayMemberValue extends MemberValue {
     /**
      * Writes the value.
      */
+    @Override
     public void write(AnnotationsWriter writer) throws IOException {
-        int num = values.length;
+        int num = values == null ? 0 : values.length;
         writer.arrayValue(num);
         for (int i = 0; i < num; ++i)
             values[i].write(writer);
@@ -138,6 +144,7 @@ public class ArrayMemberValue extends MemberValue {
     /**
      * Accepts a visitor.
      */
+    @Override
     public void accept(MemberValueVisitor visitor) {
         visitor.visitArrayMemberValue(this);
     }

@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,9 +16,21 @@
 
 package javassist.expr;
 
-import javassist.*;
-import javassist.bytecode.*;
-import javassist.compiler.*;
+import javassist.CannotCompileException;
+import javassist.ClassPool;
+import javassist.CtBehavior;
+import javassist.CtClass;
+import javassist.CtMethod;
+import javassist.NotFoundException;
+import javassist.bytecode.BadBytecode;
+import javassist.bytecode.Bytecode;
+import javassist.bytecode.CodeAttribute;
+import javassist.bytecode.CodeIterator;
+import javassist.bytecode.ConstPool;
+import javassist.bytecode.Descriptor;
+import javassist.bytecode.MethodInfo;
+import javassist.compiler.CompileError;
+import javassist.compiler.Javac;
 
 /**
  * Method invocation (caller-side expression).
@@ -38,14 +51,14 @@ public class MethodCall extends Expr {
 
         if (c == INVOKEINTERFACE)
             return cp.getInterfaceMethodrefNameAndType(index);
-        else
-            return cp.getMethodrefNameAndType(index);
+        return cp.getMethodrefNameAndType(index);
     }
 
     /**
      * Returns the method or constructor containing the method-call
      * expression represented by this object.
      */
+    @Override
     public CtBehavior where() { return super.where(); }
 
     /**
@@ -54,6 +67,7 @@ public class MethodCall extends Expr {
      *
      * @return -1       if this information is not available.
      */
+    @Override
     public int getLineNumber() {
         return super.getLineNumber();
     }
@@ -63,6 +77,7 @@ public class MethodCall extends Expr {
      *
      * @return null     if this information is not available.
      */
+    @Override
     public String getFileName() {
         return super.getFileName();
     }
@@ -136,6 +151,7 @@ public class MethodCall extends Expr {
      * including the expression can catch and the exceptions that
      * the throws declaration allows the method to throw.
      */
+    @Override
     public CtClass[] mayThrow() {
         return super.mayThrow();
     }
@@ -173,8 +189,9 @@ public class MethodCall extends Expr {
      *
      * <p>$0 is available even if the called method is static.
      *
-     * @param statement         a Java statement.
+     * @param statement         a Java statement except try-catch.
      */
+    @Override
     public void replace(String statement) throws CannotCompileException {
         thisClass.getClassFile();   // to call checkModify().
         ConstPool constPool = getConstPool();
@@ -214,7 +231,7 @@ public class MethodCall extends Expr {
                 jc.recordStaticProceed(classname, methodname);
             else if (c == INVOKESPECIAL)
                 jc.recordSpecialProceed(Javac.param0Name, classname,
-                                        methodname, signature);
+                                        methodname, signature, index);
             else
                 jc.recordProceed(Javac.param0Name, methodname);
 

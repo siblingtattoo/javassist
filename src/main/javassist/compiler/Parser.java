@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,7 +16,29 @@
 
 package javassist.compiler;
 
-import javassist.compiler.ast.*;
+import javassist.compiler.ast.ASTList;
+import javassist.compiler.ast.ASTree;
+import javassist.compiler.ast.ArrayInit;
+import javassist.compiler.ast.AssignExpr;
+import javassist.compiler.ast.BinExpr;
+import javassist.compiler.ast.CallExpr;
+import javassist.compiler.ast.CastExpr;
+import javassist.compiler.ast.CondExpr;
+import javassist.compiler.ast.Declarator;
+import javassist.compiler.ast.DoubleConst;
+import javassist.compiler.ast.Expr;
+import javassist.compiler.ast.FieldDecl;
+import javassist.compiler.ast.InstanceOfExpr;
+import javassist.compiler.ast.IntConst;
+import javassist.compiler.ast.Keyword;
+import javassist.compiler.ast.Member;
+import javassist.compiler.ast.MethodDecl;
+import javassist.compiler.ast.NewExpr;
+import javassist.compiler.ast.Pair;
+import javassist.compiler.ast.Stmnt;
+import javassist.compiler.ast.StringL;
+import javassist.compiler.ast.Symbol;
+import javassist.compiler.ast.Variable;
 
 public final class Parser implements TokenId {
     private Lex lex;
@@ -33,8 +56,7 @@ public final class Parser implements TokenId {
         ASTList mem = parseMember1(tbl);
         if (mem instanceof MethodDecl)
             return parseMethod2(tbl, (MethodDecl)mem);
-        else
-            return mem;
+        return mem;
     }
 
     /* A method body is not parsed.
@@ -62,8 +84,7 @@ public final class Parser implements TokenId {
         d.setVariable(new Symbol(name));
         if (isConstructor || lex.lookAhead() == '(')
             return parseMethod1(tbl, isConstructor, mods, d);
-        else
-            return parseField(tbl, mods, d);
+        return parseField(tbl, mods, d);
     }
 
     /* field.declaration
@@ -187,11 +208,9 @@ public final class Parser implements TokenId {
             int dim = parseArrayDimension();
             return new Declarator(t, dim);
         }
-        else {
-            ASTList name = parseClassType(tbl);
-            int dim = parseArrayDimension();
-            return new Declarator(name, dim);
-        }
+        ASTList name = parseClassType(tbl);
+        int dim = parseArrayDimension();
+        return new Declarator(name, dim);
     }
 
     private static boolean isBuiltinType(int t) {
@@ -293,8 +312,7 @@ public final class Parser implements TokenId {
         lex.get();      // '}'
         if (body == null)
             return new Stmnt(BLOCK);    // empty block
-        else
-            return body;
+        return body;
     }
 
     /* if.statement : IF "(" expression ")" statement
@@ -653,8 +671,7 @@ public final class Parser implements TokenId {
     private ASTree parseInitializer(SymbolTable tbl) throws CompileError {
         if (lex.lookAhead() == '{')
             return parseArrayInitializer(tbl);
-        else
-            return parseExpression(tbl);
+        return parseExpression(tbl);
     }
 
     /* array.initializer :
@@ -725,8 +742,7 @@ public final class Parser implements TokenId {
             ASTree elseExpr = parseExpression(tbl);
             return new CondExpr(cond, thenExpr, elseExpr);
         }
-        else
-            return cond;
+        return cond;
     }
 
     /* logical.or.expr          10 (operator precedence)
@@ -777,8 +793,7 @@ public final class Parser implements TokenId {
             int p = getOpPrecedence(t);
             if (p == 0)
                 return expr;
-            else
-                expr = binaryExpr2(tbl, expr, p);
+            expr = binaryExpr2(tbl, expr, p);
         }
     }
 
@@ -791,11 +806,9 @@ public final class Parser implements TokenId {
             int dim = parseArrayDimension();
             return new InstanceOfExpr(t, dim, expr);
         }
-        else {
-            ASTList name = parseClassType(tbl);
-            int dim = parseArrayDimension();
-            return new InstanceOfExpr(name, dim, expr);
-        }
+        ASTList name = parseClassType(tbl);
+        int dim = parseArrayDimension();
+        return new InstanceOfExpr(name, dim, expr);
     }
 
     private ASTree binaryExpr2(SymbolTable tbl, ASTree expr, int prec)
@@ -891,7 +904,7 @@ public final class Parser implements TokenId {
     /* cast.expr : "(" builtin.type ("[" "]")* ")" unary.expr
                  | "(" class.type ("[" "]")* ")" unary.expr2
 
-       unary.expr2 is a unary.expr begining with "(", NULL, StringL,
+       unary.expr2 is a unary.expr beginning with "(", NULL, StringL,
        Identifier, THIS, SUPER, or NEW.
 
        Either "(int.class)" or "(String[].class)" is a not cast expression.
@@ -921,6 +934,7 @@ public final class Parser implements TokenId {
     }
 
     private boolean nextIsBuiltinCast() {
+        @SuppressWarnings("unused")
         int t;
         int i = 2;
         while ((t = lex.lookAhead(i++)) == '[')
@@ -948,6 +962,7 @@ public final class Parser implements TokenId {
     }
 
     private int nextIsClassType(int i) {
+        @SuppressWarnings("unused")
         int t;
         while (lex.lookAhead(++i) == '.')
             if (lex.lookAhead(++i) != Identifier)
@@ -1000,6 +1015,7 @@ public final class Parser implements TokenId {
      *              | postfix.expr "." Identifier
      *              | postfix.expr ( "[" "]" )* "." CLASS
      *              | postfix.expr "#" Identifier
+     *              | postfix.expr "." SUPER
      *
      * "#" is not an operator of regular Java.  It separates
      * a class name and a member name in an expression for static member
@@ -1057,9 +1073,10 @@ public final class Parser implements TokenId {
             case '.' :
                 lex.get();
                 t = lex.get();
-                if (t == CLASS) {
+                if (t == CLASS)
                     expr = parseDotClass(expr, 0);
-                }
+                else if (t == SUPER)
+                    expr = Expr.make('.', new Symbol(toClassName(expr)), new Keyword(t));
                 else if (t == Identifier) {
                     str = lex.getString();
                     expr = Expr.make('.', expr, new Member(str));
@@ -1114,43 +1131,41 @@ public final class Parser implements TokenId {
             String cname = CodeGen.toJvmTypeName(builtinType, dim);
             return Expr.make('.', new Symbol(cname), new Member("class"));
         }
-        else {
-            String cname;
-            switch(builtinType) {
-            case BOOLEAN :
-                cname = "java.lang.Boolean";
-                break;
-            case BYTE :
-                cname = "java.lang.Byte";
-                break;
-            case CHAR :
-                cname = "java.lang.Character";
-                break;
-            case SHORT :
-                cname = "java.lang.Short";
-                break;
-            case INT :
-                cname = "java.lang.Integer";
-                break;
-            case LONG :
-                cname = "java.lang.Long";
-                break;
-            case FLOAT :
-                cname = "java.lang.Float";
-                break;
-            case DOUBLE :
-                cname = "java.lang.Double";
-                break;
-            case VOID :
-                cname = "java.lang.Void";
-                break;
-            default :
-                throw new CompileError("invalid builtin type: "
-                                       + builtinType);
-            }
-
-            return Expr.make(MEMBER, new Symbol(cname), new Member("TYPE"));
+        String cname;
+        switch(builtinType) {
+        case BOOLEAN :
+            cname = "java.lang.Boolean";
+            break;
+        case BYTE :
+            cname = "java.lang.Byte";
+            break;
+        case CHAR :
+            cname = "java.lang.Character";
+            break;
+        case SHORT :
+            cname = "java.lang.Short";
+            break;
+        case INT :
+            cname = "java.lang.Integer";
+            break;
+        case LONG :
+            cname = "java.lang.Long";
+            break;
+        case FLOAT :
+            cname = "java.lang.Float";
+            break;
+        case DOUBLE :
+            cname = "java.lang.Double";
+            break;
+        case VOID :
+            cname = "java.lang.Void";
+            break;
+        default :
+            throw new CompileError("invalid builtin type: "
+                                   + builtinType);
         }
+
+        return Expr.make(MEMBER, new Symbol(cname), new Member("TYPE"));
     }
 
     /* method.call : method.expr "(" argument.list ")"
@@ -1233,8 +1248,7 @@ public final class Parser implements TokenId {
             decl = tbl.lookup(name);
             if (decl == null)
                 return new Member(name);        // this or static member
-            else
-                return new Variable(name, decl); // local variable
+            return new Variable(name, decl); // local variable
         case StringL :
             return new StringL(lex.getString());
         case NEW :
@@ -1243,8 +1257,7 @@ public final class Parser implements TokenId {
             expr = parseExpression(tbl);
             if (lex.get() == ')')
                 return expr;
-            else
-                throw new CompileError(") is missing", lex);
+            throw new CompileError(") is missing", lex);
         default :
             if (isBuiltinType(t) || t == VOID) {
                 int dim = parseArrayDimension();
@@ -1308,13 +1321,11 @@ public final class Parser implements TokenId {
             lex.get();
             return null;
         }
-        else {
-            ASTree index = parseExpression(tbl);
-            if (lex.get() != ']')
-                throw new CompileError("] is missing", lex);
+        ASTree index = parseExpression(tbl);
+        if (lex.get() != ']')
+            throw new CompileError("] is missing", lex);
 
-            return index;
-        }
+        return index;
     }
 
     /* argument.list : "(" [ expression [ "," expression ]* ] ")"

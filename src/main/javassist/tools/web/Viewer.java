@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,8 +16,10 @@
 
 package javassist.tools.web;
 
-import java.io.*;
-import java.net.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.net.URLConnection;
 
 /**
  * A sample applet viewer.
@@ -27,7 +30,7 @@ import java.net.*;
  *
  * <p>To run, you should type:
  *
- * <ul><code>% java javassist.tools.web.Viewer <i>host port</i> Main arg1, ...</code></ul>
+ * <pre>% java javassist.tools.web.Viewer <i>host port</i> Main arg1, ...</pre>
  *
  * <p>This command calls <code>Main.main()</code> with <code>arg1,...</code>
  * All classes including <code>Main</code> are fetched from
@@ -41,10 +44,10 @@ import java.net.*;
  * a program loaded by this object can call a method in <code>Viewer</code>.
  * For example, you can write something like this:
  *
- * <ul><pre>
+ * <pre>
  * Viewer v = (Viewer)this.getClass().getClassLoader();
  * String port = v.getPort();
- * </pre></ul>
+ * </pre>
  *
  */
 public class Viewer extends ClassLoader {
@@ -96,7 +99,7 @@ public class Viewer extends ClassLoader {
     public void run(String classname, String[] args)
         throws Throwable
     {
-        Class c = loadClass(classname);
+        Class<?> c = loadClass(classname);
         try {
             c.getDeclaredMethod("main", new Class[] { String[].class })
                 .invoke(null, new Object[] { args });
@@ -109,10 +112,11 @@ public class Viewer extends ClassLoader {
     /**
      * Requests the class loader to load a class.
      */
-    protected synchronized Class loadClass(String name, boolean resolve)
+    @Override
+    protected synchronized Class<?> loadClass(String name, boolean resolve)
         throws ClassNotFoundException
     {
-        Class c = findLoadedClass(name);
+        Class<?> c = findLoadedClass(name);
         if (c == null)
             c = findClass(name);
 
@@ -135,8 +139,9 @@ public class Viewer extends ClassLoader {
      * <p>This method can be overridden by a subclass of
      * <code>Viewer</code>.
      */
-    protected Class findClass(String name) throws ClassNotFoundException {
-        Class c = null;
+    @Override
+    protected Class<?> findClass(String name) throws ClassNotFoundException {
+        Class<?> c = null;
         if (name.startsWith("java.") || name.startsWith("javax.")
             || name.equals("javassist.tools.web.Viewer"))
             c = findSystemClass(name);

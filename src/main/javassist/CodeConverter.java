@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,8 +16,22 @@
 
 package javassist;
 
-import javassist.bytecode.*;
-import javassist.convert.*;
+import javassist.bytecode.BadBytecode;
+import javassist.bytecode.CodeAttribute;
+import javassist.bytecode.CodeIterator;
+import javassist.bytecode.ConstPool;
+import javassist.bytecode.MethodInfo;
+import javassist.convert.TransformAccessArrayField;
+import javassist.convert.TransformAfter;
+import javassist.convert.TransformBefore;
+import javassist.convert.TransformCall;
+import javassist.convert.TransformCallToStatic;
+import javassist.convert.TransformFieldAccess;
+import javassist.convert.TransformNew;
+import javassist.convert.TransformNewClass;
+import javassist.convert.TransformReadField;
+import javassist.convert.TransformWriteField;
+import javassist.convert.Transformer;
 
 /**
  * Simple translator of method bodies
@@ -28,7 +43,7 @@ import javassist.convert.*;
  * <code>CtMethod.instrument()</code> as a parameter.
  *
  * <p>Example:
- * <ul><pre>
+ * <pre>
  * ClassPool cp = ClassPool.getDefault();
  * CtClass point = cp.get("Point");
  * CtClass singleton = cp.get("Singleton");
@@ -36,7 +51,7 @@ import javassist.convert.*;
  * CodeConverter conv = new CodeConverter();
  * conv.replaceNew(point, singleton, "makePoint");
  * client.instrument(conv);
- * </pre></ul>
+ * </pre>
  *
  * <p>This program substitutes "<code>Singleton.makePoint()</code>"
  * for all occurrences of "<code>new Point()</code>"
@@ -58,22 +73,22 @@ public class CodeConverter {
      * <code>Singleton</code>, respectively)
      * replaces all occurrences of:
      *
-     * <ul><code>new Point(x, y)</code></ul>
+     * <pre>new Point(x, y)</pre>
      *
      * in the method body with:
      *
-     * <ul><code>Singleton.createPoint(x, y)</code></ul>
+     * <pre>Singleton.createPoint(x, y)</pre>
      *
      * <p>This enables to intercept instantiation of <code>Point</code>
      * and change the samentics.  For example, the following
      * <code>createPoint()</code> implements the singleton pattern:
      *
-     * <ul><pre>public static Point createPoint(int x, int y) {
+     * <pre>public static Point createPoint(int x, int y) {
      *     if (aPoint == null)
      *         aPoint = new Point(x, y);
      *     return aPoint;
      * }
-     * </pre></ul>
+     * </pre>
      *
      * <p>The static method call substituted for the original <code>new</code>
      * expression must be
@@ -108,11 +123,11 @@ public class CodeConverter {
      * <code>Point2</code>, respectively)
      * replaces all occurrences of:
      *
-     * <ul><code>new Point(x, y)</code></ul>
+     * <pre>new Point(x, y)</pre>
      *
      * in the method body with:
      *
-     * <ul><code>new Point2(x, y)</code></ul>
+     * <pre>new Point2(x, y)</pre>
      *
      * <p>Note that <code>Point2</code> must be type-compatible with <code>Point</code>.
      * It must have the same set of methods, fields, and constructors as the
@@ -156,19 +171,19 @@ public class CodeConverter {
      *
      * <p>For example, the program below
      *
-     * <ul><pre>Point p = new Point();
-     * int newX = p.x + 3;</pre></ul>
+     * <pre>Point p = new Point();
+     * int newX = p.x + 3;</pre>
      *
      * <p>can be translated into:
      *
-     * <ul><pre>Point p = new Point();
-     * int newX = Accessor.readX(p) + 3;</pre></ul>
+     * <pre>Point p = new Point();
+     * int newX = Accessor.readX(p) + 3;</pre>
      *
      * <p>where
      *
-     * <ul><pre>public class Accessor {
+     * <pre>public class Accessor {
      *     public static int readX(Object target) { ... }
-     * }</pre></ul>
+     * }</pre>
      *
      * <p>The type of the parameter of <code>readX()</code> must
      * be <code>java.lang.Object</code> independently of the actual
@@ -197,19 +212,19 @@ public class CodeConverter {
      *
      * <p>For example, the program below
      *
-     * <ul><pre>Point p = new Point();
-     * p.x = 3;</pre></ul>
+     * <pre>Point p = new Point();
+     * p.x = 3;</pre>
      *
      * <p>can be translated into:
      *
-     * <ul><pre>Point p = new Point();
-     * Accessor.writeX(3);</pre></ul>
+     * <pre>Point p = new Point();
+     * Accessor.writeX(3);</pre>
      *
      * <p>where
      *
-     * <ul><pre>public class Accessor {
+     * <pre>public class Accessor {
      *     public static void writeX(Object target, int value) { ... }
-     * }</pre></ul>
+     * }</pre>
      *
      * <p>The type of the first parameter of <code>writeX()</code> must
      * be <code>java.lang.Object</code> independently of the actual
@@ -393,6 +408,42 @@ public class CodeConverter {
     }
 
     /**
+     * Redirect non-static method invocations in a method body to a static
+     * method. The return type must be same with the originally invoked method.
+     * As parameters, the static method receives
+     * the target object and all the parameters to the originally invoked
+     * method.  For example, if the originally invoked method is
+     * <code>move()</code>:
+     *
+     * <pre>class Point {
+     *     Point move(int x, int y) { ... }
+     * }</pre>
+     *
+     * <p>Then the static method must be something like this:
+     *
+     * <pre>class Verbose {
+     *     static Point print(Point target, int x, int y) { ... }
+     * }</pre>
+     *
+     * <p>The <code>CodeConverter</code> would translate bytecode
+     * equivalent to:
+     *
+     * <pre>Point p2 = p.move(x + y, 0);</pre>
+     *
+     * <p>into the bytecode equivalent to:
+     *
+     * <pre>Point p2 = Verbose.print(p, x + y, 0);</pre>
+     *
+     * @param origMethod   original method
+     * @param staticMethod static method
+     */
+    public void redirectMethodCallToStatic(CtMethod origMethod,
+                                           CtMethod staticMethod) {
+        transformers = new TransformCallToStatic(transformers, origMethod,
+                staticMethod);
+    }
+
+    /**
      * Insert a call to another method before an existing method call.
      * That "before" method must be static.  The return type must be
      * <code>void</code>.  As parameters, the before method receives
@@ -400,27 +451,27 @@ public class CodeConverter {
      * method.  For example, if the originally invoked method is
      * <code>move()</code>:
      *
-     * <ul><pre>class Point {
+     * <pre>class Point {
      *     Point move(int x, int y) { ... }
-     * }</pre></ul>
+     * }</pre>
      *
      * <p>Then the before method must be something like this:
      *
-     * <ul><pre>class Verbose {
+     * <pre>class Verbose {
      *     static void print(Point target, int x, int y) { ... }
-     * }</pre></ul>
+     * }</pre>
      *
      * <p>The <code>CodeConverter</code> would translate bytecode
      * equivalent to:
      *
-     * <ul><pre>Point p2 = p.move(x + y, 0);</pre></ul>
+     * <pre>Point p2 = p.move(x + y, 0);</pre>
      *
      * <p>into the bytecode equivalent to:
      *
-     * <ul><pre>int tmp1 = x + y;
+     * <pre>int tmp1 = x + y;
      * int tmp2 = 0;
      * Verbose.print(p, tmp1, tmp2);
-     * Point p2 = p.move(tmp1, tmp2);</pre></ul>
+     * Point p2 = p.move(tmp1, tmp2);</pre>
      *
      * @param origMethod        the method originally invoked.
      * @param beforeMethod      the method invoked before
@@ -447,27 +498,28 @@ public class CodeConverter {
      * method.  For example, if the originally invoked method is
      * <code>move()</code>:
      *
-     * <ul><pre>class Point {
+     * <pre>class Point {
      *     Point move(int x, int y) { ... }
-     * }</pre></ul>
+     * }</pre>
      *
      * <p>Then the after method must be something like this:
      *
-     * <ul><pre>class Verbose {
+     * <pre>class Verbose {
      *     static void print(Point target, int x, int y) { ... }
-     * }</pre></ul>
+     * }</pre>
      *
      * <p>The <code>CodeConverter</code> would translate bytecode
      * equivalent to:
      *
-     * <ul><pre>Point p2 = p.move(x + y, 0);</pre></ul>
+     * <pre>Point p2 = p.move(x + y, 0);</pre>
      *
      * <p>into the bytecode equivalent to:
      *
-     * <ul><pre>int tmp1 = x + y;
+     * <pre>
+     * int tmp1 = x + y;
      * int tmp2 = 0;
      * Point p2 = p.move(tmp1, tmp2);
-     * Verbose.print(p, tmp1, tmp2);</pre></ul>
+     * Verbose.print(p, tmp1, tmp2);</pre>
      *
      * @param origMethod        the method originally invoked.
      * @param afterMethod       the method invoked after
@@ -531,6 +583,14 @@ public class CodeConverter {
 
         if (stack > 0)
             codeAttr.setMaxStack(codeAttr.getMaxStack() + stack);
+
+        try {
+        	minfo.rebuildStackMapIf6(clazz.getClassPool(),
+                                     clazz.getClassFile2());
+        }
+        catch (BadBytecode b) {
+            throw new CannotCompileException(b.getMessage(), b);
+        }
     }
 
     /**
@@ -656,6 +716,7 @@ public class CodeConverter {
         * Returns "arrayReadByteOrBoolean" as the name of the static method with the signature
         * (Ljava/lang/Object;I)B to replace reading from a byte[].
         */
+        @Override
        public String byteOrBooleanRead()
        {
           return "arrayReadByteOrBoolean";
@@ -665,6 +726,7 @@ public class CodeConverter {
         * Returns "arrayWriteByteOrBoolean" as the name of the static method with the signature
         * (Ljava/lang/Object;IB)V  to replace writing to a byte[].
         */
+        @Override
        public String byteOrBooleanWrite()
        {
           return "arrayWriteByteOrBoolean";
@@ -674,6 +736,7 @@ public class CodeConverter {
         * Returns "arrayReadChar" as the name of the static method with the signature
         * (Ljava/lang/Object;I)C  to replace reading from a char[].
         */
+        @Override
        public String charRead()
        {
           return "arrayReadChar";
@@ -683,6 +746,7 @@ public class CodeConverter {
         * Returns "arrayWriteChar" as the name of the static method with the signature
         * (Ljava/lang/Object;IC)V to replace writing to a byte[].
         */
+        @Override
        public String charWrite()
        {
           return "arrayWriteChar";
@@ -692,6 +756,7 @@ public class CodeConverter {
         * Returns "arrayReadDouble" as the name of the static method with the signature
         * (Ljava/lang/Object;I)D to replace reading from a double[].
         */
+        @Override
        public String doubleRead()
        {
           return "arrayReadDouble";
@@ -701,6 +766,7 @@ public class CodeConverter {
         * Returns "arrayWriteDouble" as the name of the static method with the signature
         * (Ljava/lang/Object;ID)V to replace writing to a double[].
         */
+        @Override
        public String doubleWrite()
        {
           return "arrayWriteDouble";
@@ -710,6 +776,7 @@ public class CodeConverter {
         * Returns "arrayReadFloat" as the name of the static method with the signature
         * (Ljava/lang/Object;I)F  to replace reading from a float[].
         */
+        @Override
        public String floatRead()
        {
           return "arrayReadFloat";
@@ -719,6 +786,7 @@ public class CodeConverter {
         * Returns "arrayWriteFloat" as the name of the static method with the signature
         * (Ljava/lang/Object;IF)V  to replace writing to a float[].
         */
+        @Override
        public String floatWrite()
        {
           return "arrayWriteFloat";
@@ -728,6 +796,7 @@ public class CodeConverter {
         * Returns "arrayReadInt" as the name of the static method with the signature
         * (Ljava/lang/Object;I)I to replace reading from a int[].
         */
+        @Override
        public String intRead()
        {
           return "arrayReadInt";
@@ -737,6 +806,7 @@ public class CodeConverter {
         * Returns "arrayWriteInt" as the name of the static method with the signature
         * (Ljava/lang/Object;II)V to replace writing to a int[].
         */
+        @Override
        public String intWrite()
        {
           return "arrayWriteInt";
@@ -746,6 +816,7 @@ public class CodeConverter {
         * Returns "arrayReadLong" as the name of the static method with the signature
         * (Ljava/lang/Object;I)J to replace reading from a long[].
         */
+        @Override
        public String longRead()
        {
           return "arrayReadLong";
@@ -755,6 +826,7 @@ public class CodeConverter {
         * Returns "arrayWriteLong" as the name of the static method with the signature
         * (Ljava/lang/Object;IJ)V to replace writing to a long[].
         */
+        @Override
        public String longWrite()
        {
           return "arrayWriteLong";
@@ -764,6 +836,7 @@ public class CodeConverter {
         * Returns "arrayReadObject" as the name of the static method with the signature
         * (Ljava/lang/Object;I)Ljava/lang/Object;  to replace reading from a Object[] (or any subclass of object).
         */
+        @Override
        public String objectRead()
        {
           return "arrayReadObject";
@@ -773,6 +846,7 @@ public class CodeConverter {
         * Returns "arrayWriteObject" as the name of the static method with the signature
         * (Ljava/lang/Object;ILjava/lang/Object;)V  to replace writing to a Object[] (or any subclass of object).
         */
+        @Override
        public String objectWrite()
        {
           return "arrayWriteObject";
@@ -782,6 +856,7 @@ public class CodeConverter {
         * Returns "arrayReadShort" as the name of the static method with the signature
         * (Ljava/lang/Object;I)S to replace reading from a short[].
         */
+        @Override
        public String shortRead()
        {
           return "arrayReadShort";
@@ -791,6 +866,7 @@ public class CodeConverter {
         * Returns "arrayWriteShort" as the name of the static method with the signature
         * (Ljava/lang/Object;IS)V to replace writing to a short[].
         */
+        @Override
        public String shortWrite()
        {
           return "arrayWriteShort";

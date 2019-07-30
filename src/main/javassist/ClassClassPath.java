@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -26,10 +27,10 @@ import java.net.URL;
  * with a user-defined class loader and any class files are not found with
  * the default <code>ClassPool</code>.  For example,
  *
- * <ul><pre>
+ * <pre>
  * ClassPool cp = ClassPool.getDefault();
  * cp.insertClassPath(new ClassClassPath(this.getClass()));
- * </pre></ul>
+ * </pre>
  *
  * This code snippet permanently adds a <code>ClassClassPath</code>
  * to the default <code>ClassPool</code>.  Note that the default
@@ -37,12 +38,16 @@ import java.net.URL;
  * <code>ClassClassPath</code> uses a class object representing
  * the class including the code snippet above.
  *
+ * <p>Class files in a named module are private to that module.
+ * This method cannot obtain class files in named modules.
+ * </p>
+ *
  * @see ClassPool#insertClassPath(ClassPath)
  * @see ClassPool#appendClassPath(ClassPath)
  * @see LoaderClassPath
  */
 public class ClassClassPath implements ClassPath {
-    private Class thisClass;
+    private Class<?> thisClass;
 
     /** Creates a search path.
      *
@@ -50,7 +55,7 @@ public class ClassClassPath implements ClassPath {
      *              file.  <code>getResourceAsStream()</code> is called on
      *              this object.
      */
-    public ClassClassPath(Class c) {
+    public ClassClassPath(Class<?> c) {
         thisClass = c;
     }
 
@@ -69,31 +74,28 @@ public class ClassClassPath implements ClassPath {
     /**
      * Obtains a class file by <code>getResourceAsStream()</code>.
      */
-    public InputStream openClassfile(String classname) {
-        String jarname = "/" + classname.replace('.', '/') + ".class";
-        return thisClass.getResourceAsStream(jarname);
+    @Override
+    public InputStream openClassfile(String classname) throws NotFoundException {
+        String filename = '/' + classname.replace('.', '/') + ".class";
+        return thisClass.getResourceAsStream(filename);
     }
 
     /**
      * Obtains the URL of the specified class file.
      *
-     * @return null if the class file could not be found. 
+     * @return null if the class file could not be found.
      */
+    @Override
     public URL find(String classname) {
-        String jarname = "/" + classname.replace('.', '/') + ".class";
-        return thisClass.getResource(jarname);
-    }
-
-    /**
-     * Does nothing.
-     */
-    public void close() {
+        String filename = '/' + classname.replace('.', '/') + ".class";
+        return thisClass.getResource(filename);
     }
 
     public String getResource(String classname) {
         throw new RuntimeException();
     }
 
+    @Override
     public String toString() {
         return thisClass.getName() + ".class";
     }

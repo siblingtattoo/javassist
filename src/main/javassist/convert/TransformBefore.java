@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -18,7 +19,12 @@ package javassist.convert;
 import javassist.CtClass;
 import javassist.CtMethod;
 import javassist.NotFoundException;
-import javassist.bytecode.*;
+import javassist.bytecode.BadBytecode;
+import javassist.bytecode.Bytecode;
+import javassist.bytecode.CodeAttribute;
+import javassist.bytecode.CodeIterator;
+import javassist.bytecode.ConstPool;
+import javassist.bytecode.Descriptor;
 
 public class TransformBefore extends TransformCall {
     protected CtClass[] parameterTypes;
@@ -41,6 +47,7 @@ public class TransformBefore extends TransformCall {
         saveCode = loadCode = null;
     }
 
+    @Override
     public void initialize(ConstPool cp, CodeAttribute attr) {
         super.initialize(cp, attr);
         locals = 0;
@@ -48,6 +55,7 @@ public class TransformBefore extends TransformCall {
         saveCode = loadCode = null;
     }
 
+    @Override
     protected int match(int c, int pos, CodeIterator iterator,
                         int typedesc, ConstPool cp) throws BadBytecode
     {
@@ -77,6 +85,7 @@ public class TransformBefore extends TransformCall {
         return iterator.next();
     }
 
+    @Override
     public int extraLocals() { return locals; }
 
     protected void makeCode(CtClass[] paramTypes, ConstPool cp) {

@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,15 +16,25 @@
 
 package javassist.tools.rmi;
 
-import java.io.*;
-
-import javassist.tools.web.*;
-import javassist.CannotCompileException;
-import javassist.NotFoundException;
-import javassist.ClassPool;
+import java.io.DataInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InvalidClassException;
+import java.io.NotSerializableException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.util.Hashtable;
+import java.util.List;
+import java.util.Map;
 import java.util.Vector;
+
+import javassist.CannotCompileException;
+import javassist.ClassPool;
+import javassist.NotFoundException;
+import javassist.tools.web.BadHttpRequest;
+import javassist.tools.web.Webserver;
 
 /**
  * An AppletServer object is a web server that an ObjectImporter
@@ -36,8 +47,8 @@ import java.util.Vector;
  */
 public class AppletServer extends Webserver {
     private StubGenerator stubGen;
-    private Hashtable exportedNames;
-    private Vector exportedObjects;
+    private Map<String,ExportedObject> exportedNames;
+    private List<ExportedObject> exportedObjects;
 
     private static final byte[] okHeader
                                 = "HTTP/1.0 200 OK\r\n\r\n".getBytes();
@@ -80,8 +91,8 @@ public class AppletServer extends Webserver {
         throws IOException, NotFoundException, CannotCompileException
     {
         super(port);
-        exportedNames = new Hashtable();
-        exportedObjects = new Vector();
+        exportedNames = new Hashtable<String,ExportedObject>();
+        exportedObjects = new Vector<ExportedObject>();
         stubGen = gen;
         addTranslator(loader, gen);
     }
@@ -89,6 +100,7 @@ public class AppletServer extends Webserver {
     /**
      * Begins the HTTP service.
      */
+    @Override
     public void run() {
         super.run();
     }
@@ -108,11 +120,11 @@ public class AppletServer extends Webserver {
     public synchronized int exportObject(String name, Object obj)
         throws CannotCompileException
     {
-        Class clazz = obj.getClass();
+        Class<?> clazz = obj.getClass();
         ExportedObject eo = new ExportedObject();
         eo.object = obj;
         eo.methods = clazz.getMethods();
-        exportedObjects.addElement(eo);
+        exportedObjects.add(eo);
         eo.identifier = exportedObjects.size() - 1;
         if (name != null)
             exportedNames.put(name, eo);
@@ -130,6 +142,7 @@ public class AppletServer extends Webserver {
     /**
      * Processes a request from a web browser (an ObjectImporter).
      */
+    @Override
     public void doReply(InputStream in, OutputStream out, String cmd)
         throws IOException, BadHttpRequest
     {
@@ -151,8 +164,7 @@ public class AppletServer extends Webserver {
         Exception err = null;
         Object rvalue = null;
         try {
-            ExportedObject eo
-                = (ExportedObject)exportedObjects.elementAt(objectId);
+            ExportedObject eo = exportedObjects.get(objectId);
             Object[] args = readParameters(in);
             rvalue = convertRvalue(eo.methods[methodId].invoke(eo.object,
                                                                args));
@@ -194,8 +206,7 @@ public class AppletServer extends Webserver {
             Object a = in.readObject();
             if (a instanceof RemoteRef) {
                 RemoteRef ref = (RemoteRef)a;
-                ExportedObject eo
-                    = (ExportedObject)exportedObjects.elementAt(ref.oid);
+                ExportedObject eo = exportedObjects.get(ref.oid);
                 a = eo.object;
             }
 
@@ -214,8 +225,7 @@ public class AppletServer extends Webserver {
         String classname = rvalue.getClass().getName();
         if (stubGen.isProxyClass(classname))
             return new RemoteRef(exportObject(null, rvalue), classname);
-        else
-            return rvalue;
+        return rvalue;
     }
 
     private void lookupName(String cmd, InputStream ins, OutputStream outs)
@@ -223,7 +233,7 @@ public class AppletServer extends Webserver {
     {
         ObjectInputStream in = new ObjectInputStream(ins);
         String name = DataInputStream.readUTF(in);
-        ExportedObject found = (ExportedObject)exportedNames.get(name);
+        ExportedObject found = exportedNames.get(name);
         outs.write(okHeader);
         ObjectOutputStream out = new ObjectOutputStream(outs);
         if (found == null) {

@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,8 +16,11 @@
 
 package javassist;
 
-import java.io.*;
-import java.net.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLConnection;
 
 /**
  * A class search-path specified with URL (http).
@@ -40,8 +44,8 @@ public class URLClassPath implements ClassPath {
      * "org.javassist.test.Main", then the given URL is used for loading that class.
      * The <code>URLClassPath</code> obtains a class file from:
      *
-     * <ul><pre>http://www.javassist.org:80/java/classes/org/javassist/test/Main.class
-     * </pre></ul>
+     * <pre>http://www.javassist.org:80/java/classes/org/javassist/test/Main.class
+     * </pre>
      *
      * <p>Here, we assume that <code>host</code> is "www.javassist.org",
      * <code>port</code> is 80, and <code>directory</code> is "/java/classes/".
@@ -64,6 +68,7 @@ public class URLClassPath implements ClassPath {
         this.packageName = packageName;
     }
 
+    @Override
     public String toString() {
         return hostname + ":" + port + directory;
     }
@@ -73,6 +78,7 @@ public class URLClassPath implements ClassPath {
      *
      * @return null if the class file could not be found. 
      */
+    @Override
     public InputStream openClassfile(String classname) {
         try {
             URLConnection con = openClassfile0(classname);
@@ -89,8 +95,7 @@ public class URLClassPath implements ClassPath {
                     = directory + classname.replace('.', '/') + ".class";
             return fetchClass0(hostname, port, jarname);
         }
-        else
-            return null;    // not found
+        return null;    // not found
     }
 
     /**
@@ -98,6 +103,7 @@ public class URLClassPath implements ClassPath {
      *
      * @return null if the class file could not be obtained. 
      */
+    @Override
     public URL find(String classname) {
         try {
             URLConnection con = openClassfile0(classname);
@@ -110,11 +116,6 @@ public class URLClassPath implements ClassPath {
         catch (IOException e) {}
         return null; 
     }
-
-    /**
-     * Closes this class path.
-     */
-    public void close() {}
 
     /**
      * Reads a class file on an http server.

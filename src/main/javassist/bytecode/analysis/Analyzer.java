@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba, and others. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -13,8 +14,6 @@
  * License.
  */
 package javassist.bytecode.analysis;
-
-import java.util.Iterator;
 
 import javassist.ClassPool;
 import javassist.CtClass;
@@ -42,7 +41,7 @@ import javassist.bytecode.Opcode;
  * // Method to analyze
  * public Object doSomething(int x) {
  *     Number n;
- *     if (x < 5) {
+ *     if (x &lt; 5) {
  *        n = new Double(0);
  *     } else {
  *        n = new Long(0);
@@ -58,13 +57,13 @@ import javassist.bytecode.Opcode;
  * // 5:   new #18; //class java/lang/Double
  * // 8:   dup
  * // 9:   dconst_0
- * // 10:  invokespecial   #44; //Method java/lang/Double."<init>":(D)V
+ * // 10:  invokespecial   #44; //Method java/lang/Double."&lt;init&gt;":(D)V
  * // 13:  astore_2
  * // 14:  goto    26
  * // 17:  new #16; //class java/lang/Long
  * // 20:  dup
  * // 21:  lconst_1
- * // 22:  invokespecial   #47; //Method java/lang/Long."<init>":(J)V
+ * // 22:  invokespecial   #47; //Method java/lang/Long."&lt;init&gt;":(J)V
  * // 25:  astore_2
  * // 26:  aload_2
  * // 27:  areturn
@@ -362,9 +361,7 @@ public class Analyzer implements Opcode {
         if (subroutine == null)
             throw new BadBytecode("Ret on no subroutine! [pos = " + pos + "]");
 
-        Iterator callerIter = subroutine.callers().iterator();
-        while (callerIter.hasNext()) {
-            int caller = ((Integer) callerIter.next()).intValue();
+        for (int caller:subroutine.callers()) {
             int returnLoc = getNext(iter, caller, pos);
             boolean changed = false;
 
@@ -376,8 +373,7 @@ public class Analyzer implements Opcode {
                 changed = old.mergeStack(frame);
             }
 
-            for (Iterator i = subroutine.accessed().iterator(); i.hasNext(); ) {
-                int index = ((Integer)i.next()).intValue();
+            for (int index:subroutine.accessed()) {
                 Type oldType = old.getLocal(index);
                 Type newType = frame.getLocal(index);
                 if (oldType != newType) {

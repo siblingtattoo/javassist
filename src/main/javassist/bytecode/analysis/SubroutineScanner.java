@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba, and others. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -34,8 +35,8 @@ import javassist.bytecode.Opcode;
 public class SubroutineScanner implements Opcode {
 
     private Subroutine[] subroutines;
-    Map subTable = new HashMap();
-    Set done = new HashSet();
+    Map<Integer,Subroutine> subTable = new HashMap<Integer,Subroutine>();
+    Set<Integer> done = new HashSet<Integer>();
 
 
     public Subroutine[] scan(MethodInfo method) throws BadBytecode {
@@ -61,10 +62,10 @@ public class SubroutineScanner implements Opcode {
 
     private void scan(int pos, CodeIterator iter, Subroutine sub) throws BadBytecode {
         // Skip already processed blocks
-        if (done.contains(new Integer(pos)))
+        if (done.contains(pos))
             return;
 
-        done.add(new Integer(pos));
+        done.add(pos);
 
         int old = iter.lookAhead();
         iter.move(pos);
@@ -102,10 +103,10 @@ public class SubroutineScanner implements Opcode {
         if (Util.isJumpInstruction(opcode)) {
             int target = Util.getJumpTarget(pos, iter);
             if (opcode == JSR || opcode == JSR_W) {
-                Subroutine s = (Subroutine) subTable.get(new Integer(target));
+                Subroutine s = subTable.get(target);
                 if (s == null) {
                     s = new Subroutine(target, pos);
-                    subTable.put(new Integer(target), s);
+                    subTable.put(target, s);
                     scan(target, iter, s);
                 } else {
                     s.addCaller(pos);

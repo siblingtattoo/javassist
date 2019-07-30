@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba, and others. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,25 +16,24 @@
 package javassist.bytecode.analysis;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 
 import javassist.CtClass;
 
 /**
- * MultiType represents an unresolved type. Whenever two <literal>Type</literal>
+ * MultiType represents an unresolved type. Whenever two {@code Type}
  * instances are merged, if they share more than one super type (either an
- * interface or a superclass), then a <literal>MultiType</literal> is used to
- * represent the possible super types. The goal of a <literal>MultiType</literal>
+ * interface or a superclass), then a {@code MultiType} is used to
+ * represent the possible super types. The goal of a {@code MultiType}
  * is to reduce the set of possible types down to a single resolved type. This
  * is done by eliminating non-assignable types from the typeset when the
- * <literal>MultiType</literal> is passed as an argument to
+ * {@code MultiType} is passed as an argument to
  * {@link Type#isAssignableFrom(Type)}, as well as removing non-intersecting
  * types during a merge.
  *
- * Note: Currently the <litera>MultiType</literal> instance is reused as much
+ * Note: Currently the {@code MultiType} instance is reused as much
  * as possible so that updates are visible from all frames. In addition, all
- * <literal>MultiType</literal> merge paths are also updated. This is somewhat
+ * {@code MultiType} merge paths are also updated. This is somewhat
  * hackish, but it appears to handle most scenarios.
  *
  * @author Jason T. Greene
@@ -46,17 +46,17 @@ import javassist.CtClass;
  * changes, and somehow communicating assignment changes to the Analyzer
  */
 public class MultiType extends Type {
-    private Map interfaces;
+    private Map<String,CtClass> interfaces;
     private Type resolved;
     private Type potentialClass;
     private MultiType mergeSource;
     private boolean changed = false;
 
-    public MultiType(Map interfaces) {
+    public MultiType(Map<String,CtClass> interfaces) {
         this(interfaces, null);
     }
 
-    public MultiType(Map interfaces, Type potentialClass) {
+    public MultiType(Map<String,CtClass> interfaces, Type potentialClass) {
         super(null);
         this.interfaces = interfaces;
         this.potentialClass = potentialClass;
@@ -66,6 +66,7 @@ public class MultiType extends Type {
      * Gets the class that corresponds with this type. If this information
      * is not yet known, java.lang.Object will be returned.
      */
+    @Override
     public CtClass getCtClass() {
         if (resolved != null)
             return resolved.getCtClass();
@@ -76,6 +77,7 @@ public class MultiType extends Type {
     /**
      * Always returns null since this type is never used for an array.
      */
+    @Override
     public Type getComponent() {
         return null;
     }
@@ -83,6 +85,7 @@ public class MultiType extends Type {
     /**
      * Always returns 1, since this type is a reference.
      */
+    @Override
     public int getSize() {
         return 1;
     }
@@ -90,6 +93,7 @@ public class MultiType extends Type {
     /**
      * Always reutnrs false since this type is never used for an array
      */
+    @Override
     public boolean isArray() {
         return false;
     }
@@ -97,12 +101,14 @@ public class MultiType extends Type {
     /**
      * Returns true if the internal state has changed.
      */
+    @Override
     boolean popChanged() {
         boolean changed = this.changed;
         this.changed = false;
         return changed;
     }
 
+    @Override
     public boolean isAssignableFrom(Type type) {
         throw new UnsupportedOperationException("Not implemented");
     }
@@ -117,11 +123,11 @@ public class MultiType extends Type {
         if (potentialClass != null && !type.isAssignableFrom(potentialClass))
             potentialClass = null;
 
-        Map map = mergeMultiAndSingle(this, type);
+        Map<String,CtClass> map = mergeMultiAndSingle(this, type);
 
         if (map.size() == 1 && potentialClass == null) {
             // Update previous merge paths to the same resolved type
-            resolved = Type.get((CtClass)map.values().iterator().next());
+            resolved = Type.get(map.values().iterator().next());
             propogateResolved();
 
             return true;
@@ -167,16 +173,15 @@ public class MultiType extends Type {
      *
      * @return true
      */
+    @Override
     public boolean isReference() {
        return true;
     }
 
-    private Map getAllMultiInterfaces(MultiType type) {
-        Map map = new HashMap();
+    private Map<String,CtClass> getAllMultiInterfaces(MultiType type) {
+        Map<String,CtClass> map = new HashMap<String,CtClass>();
 
-        Iterator iter = type.interfaces.values().iterator();
-        while (iter.hasNext()) {
-            CtClass intf = (CtClass)iter.next();
+        for (CtClass intf:type.interfaces.values()) {
             map.put(intf.getName(), intf);
             getAllInterfaces(intf, map);
         }
@@ -185,16 +190,16 @@ public class MultiType extends Type {
     }
 
 
-    private Map mergeMultiInterfaces(MultiType type1, MultiType type2) {
-        Map map1 = getAllMultiInterfaces(type1);
-        Map map2 = getAllMultiInterfaces(type2);
+    private Map<String,CtClass> mergeMultiInterfaces(MultiType type1, MultiType type2) {
+        Map<String,CtClass> map1 = getAllMultiInterfaces(type1);
+        Map<String,CtClass> map2 = getAllMultiInterfaces(type2);
 
         return findCommonInterfaces(map1, map2);
     }
 
-    private Map mergeMultiAndSingle(MultiType multi, Type single) {
-        Map map1 = getAllMultiInterfaces(multi);
-        Map map2 = getAllInterfaces(single.getCtClass(), null);
+    private Map<String,CtClass> mergeMultiAndSingle(MultiType multi, Type single) {
+        Map<String,CtClass> map1 = getAllMultiInterfaces(multi);
+        Map<String,CtClass> map2 = getAllInterfaces(single.getCtClass(), null);
 
         return findCommonInterfaces(map1, map2);
     }
@@ -210,6 +215,7 @@ public class MultiType extends Type {
         return false;
     }
 
+    @Override
     public Type merge(Type type) {
         if (this == type)
             return this;
@@ -234,7 +240,7 @@ public class MultiType extends Type {
             }
         }
 
-        Map merged;
+        Map<String,CtClass> merged;
 
         if (type instanceof MultiType) {
             MultiType multi = (MultiType)type;
@@ -253,14 +259,13 @@ public class MultiType extends Type {
         // Keep all previous merge paths up to date
         if (merged.size() > 1 || (merged.size() == 1 && potentialClass != null)) {
             // Check for changes
-            if (merged.size() != interfaces.size()) {
+            if (merged.size() != interfaces.size())
                 changed = true;
-            } else if (changed == false){
-                Iterator iter = merged.keySet().iterator();
-                while (iter.hasNext())
-                    if (! interfaces.containsKey(iter.next()))
+            else if (changed == false)
+                for (String key:merged.keySet())
+                    if (!interfaces.containsKey(key))
                         changed = true;
-            }
+
 
             interfaces = merged;
             propogateState();
@@ -268,19 +273,27 @@ public class MultiType extends Type {
             return this;
         }
 
-        if (merged.size() == 1) {
-            resolved = Type.get((CtClass) merged.values().iterator().next());
-        } else if (potentialClass != null){
+        if (merged.size() == 1)
+            resolved = Type.get(merged.values().iterator().next());
+        else if (potentialClass != null)
             resolved = potentialClass;
-        } else {
+        else
             resolved = OBJECT;
-        }
 
         propogateResolved();
 
         return resolved;
     }
 
+    @Override
+    public int hashCode() {
+        if (resolved != null)
+            return resolved.hashCode();
+
+        return interfaces.keySet().hashCode();
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (! (o instanceof MultiType))
             return false;
@@ -294,19 +307,18 @@ public class MultiType extends Type {
         return interfaces.keySet().equals(multi.interfaces.keySet());
     }
 
+    @Override
     public String toString() {
         if (resolved != null)
             return resolved.toString();
 
         StringBuffer buffer = new StringBuffer("{");
-        Iterator iter = interfaces.keySet().iterator();
-        while (iter.hasNext()) {
-            buffer.append(iter.next());
-            buffer.append(", ");
-        }
-        buffer.setLength(buffer.length() - 2);
+        for (String key:interfaces.keySet())
+            buffer.append(key).append(", ");
         if (potentialClass != null)
-            buffer.append(", *").append(potentialClass.toString());
+            buffer.append("*").append(potentialClass.toString());
+        else
+            buffer.setLength(buffer.length() - 2);
         buffer.append("}");
         return buffer.toString();
     }

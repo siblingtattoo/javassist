@@ -28,6 +28,10 @@
 
 <p><a href="#j2me">8. J2ME</a>
 
+<p><a href="#boxing">9. Boxing/Unboxing
+
+<p><a href="#debug">10. Debug</a>
+
 <p><br>
 
 <a name="intro">
@@ -73,6 +77,28 @@ A <code>ClassFile</code> object can be written back to a
 class file.  <code>write()</code> in <code>ClassFile</code>
 writes the contents of the class file to a given
 <code>DataOutputStream</code>.
+
+<p>You can create a new class file from scratch.  For example,
+<blockquote><pre>
+ClassFile cf = new ClassFile(false, "test.Foo", null);
+cf.setInterfaces(new String[] { "java.lang.Cloneable" });
+ 
+FieldInfo f = new FieldInfo(cf.getConstPool(), "width", "I");
+f.setAccessFlags(AccessFlag.PUBLIC);
+cf.addField(f);
+
+cf.write(new DataOutputStream(new FileOutputStream("Foo.class")));
+</pre></blockquote>
+
+<p>this code generates a class file <code>Foo.class</code> that contains
+the implementation of the following class:
+
+<blockquote><pre>
+package test;
+class Foo implements Cloneable {
+    public int width;
+}
+</pre></blockquote>
 
 <p><br>
 
@@ -215,6 +241,27 @@ constructed from the <code>Bytecode</code> object.
 To recompute the maximum stack depth of a method body,
 call <code>computeMaxStack()</code> in <code>CodeAttribute</code>.
 
+<p><code>Bytecode</code> can be used to construct a method.
+For example,
+
+<blockquote><pre>
+ClassFile cf = ...
+Bytecode code = new Bytecode(cf.getConstPool());
+code.addAload(0);
+code.addInvokespecial("java/lang/Object", MethodInfo.nameInit, "()V");
+code.addReturn(null);
+code.setMaxLocals(1);
+
+MethodInfo minfo = new MethodInfo(cf.getConstPool(), MethodInfo.nameInit, "()V");
+minfo.setCodeAttribute(code.toCodeAttribute());
+cf.addMethod(minfo);
+</pre></blockquote>
+
+<p>this code makes the default constructor and adds it to the class specified
+by <code>cf</code>.  The <code>Bytecode</code> object is first converted into
+a <code>CodeAttribute</code> object and then added to the method specified
+by <code>minfo</code>.  The method is finally added to a class file <code>cf</code>. 
+
 <p><br>
 
 <a name="annotation">
@@ -265,7 +312,15 @@ String s = (String)v.get(0);
 </pre></ul>
 
 <p>So when you write a bytecode transformer, you can just drop
-off all type parameters.  For example, if you have a class:
+off all type parameters.  Because the compiler embedded in Javassist
+does not support generics,
+you must insert an explicit type cast at the
+caller site if the source code is compiled by Javassist, for example,
+through <code>CtMethod.make()</code>.  No type cast
+is necessary if the source code is compiled by a normal Java compiler
+such as <code>javac</code>.
+
+<p>For example, if you have a class:
 
 <ul><pre>
 public class Wrapper&lt;T&gt; {
@@ -283,7 +338,7 @@ public interface Getter&lt;T&gt; {
 }
 </pre></ul>
 
-<p>Then the interface you really have to add is <code>Getter</code>
+<p>then the interface you really have to add is <code>Getter</code>
 (the type parameters <code>&lt;T&gt;</code> drops off)
 and the method you also have to add to the <code>Wrapper</code>
 class is this simple one:
@@ -293,6 +348,23 @@ public Object get() { return value; }
 </pre></ul>
 
 <p>Note that no type parameters are necessary.
+Since <code>get</code> returns an <code>Object</code>, an explicit type cast
+is needed at the caller site if the source code is compiled by Javassist.
+For example, if the type parameter <code>T</code>
+is <code>String</code>, then <code>(String)</code> must be inserted as follows:
+
+<ul><pre>
+Wrapper w = ...
+String s = (String)w.get();
+</pre></ul>
+
+<p>The type cast is not needed if the source code is compiled by a normal Java
+compiler because it will automatically insert a type cast. 
+
+<p>If you need to make type parameters accessible through reflection
+during runtime, you have to add generic signatures to the class file.
+For more details, see the API documentation (javadoc) of the
+<code>setGenericSignature</code> method in the <code>CtClass</code>.
 
 <p><br>
 
@@ -318,7 +390,8 @@ cc.addMethod(m);
 <p>The parameter type <code>int...</code> is changed into <code>int[]</code>
 and <code>Modifier.VARARGS</code> is added to the method modifiers.
 
-<p>To call this method, you must write:
+<p>To call this method in the source code compiled by the compiler embedded in Javassist,
+you must write:
 
 <ul><pre>
 length(new int[] { 1, 2, 3 });
@@ -357,10 +430,46 @@ objects, call the <code>getDeclaredMethods</code> method on a <code>CtClass</cod
 
 <p><br>
 
+<h2><a name="boxing">9. Boxing/Unboxing</h2>
+
+<p>Boxing and unboxing in Java are syntactic sugar.  There is no bytecode for
+boxing or unboxing.  So the compiler of Javassist does not support them.
+For example, the following statement is valid in Java:
+
+<ul><pre>
+Integer i = 3;
+</pre></ul>
+
+<p>since boxing is implicitly performed.  For Javassist, however, you must explicitly
+convert a value type from <code>int</code> to <code>Integer</code>:
+
+<ul><pre>
+Integer i = new Integer(3);
+</pre></ul>
+
+<p><br>
+
+<h2><a name="debug">10. Debug</h2>
+
+<p>Set <code>CtClass.debugDump</code> to a directory name.
+Then all class files modified and generated by Javassist are saved in that
+directory.  To stop this, set <code>CtClass.debugDump</code> to null.
+The default value is null.
+
+<p>For example,
+
+<ul><pre>
+CtClass.debugDump = "./dump";
+</pre></ul>
+
+<p>All modified class files are saved in <code>./dump</code>.
+
+<p><br>
+
 <a href="tutorial2.html">Previous page</a>
 
 <hr>
 Java(TM) is a trademark of Sun Microsystems, Inc.<br>
-Copyright (C) 2000-2007 by Shigeru Chiba, All rights reserved.
+Copyright (C) 2000-2015 by Shigeru Chiba, All rights reserved.
 </body>
 </html>

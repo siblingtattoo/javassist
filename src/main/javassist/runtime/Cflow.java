@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -22,31 +23,32 @@ package javassist.runtime;
  *
  * @see javassist.CtBehavior#useCflow(String)
  */
-public class Cflow extends ThreadLocal {
-    private static class Depth {
+public class Cflow extends ThreadLocal<Cflow.Depth> {
+    protected static class Depth {
         private int depth;
         Depth() { depth = 0; }
-        int get() { return depth; }
+        int value() { return depth; }
         void inc() { ++depth; }
         void dec() { --depth; }
     }
 
-    protected synchronized Object initialValue() {
+    @Override
+    protected synchronized Depth initialValue() {
         return new Depth();
     }
 
     /**
      * Increments the counter.
      */
-    public void enter() { ((Depth)get()).inc(); }
+    public void enter() { get().inc(); }
 
     /**
      * Decrements the counter.
      */
-    public void exit() { ((Depth)get()).dec(); }
+    public void exit() { get().dec(); }
 
     /**
      * Returns the value of the counter.
      */
-    public int value() { return ((Depth)get()).get(); }
+    public int value() { return get().value(); }
 }

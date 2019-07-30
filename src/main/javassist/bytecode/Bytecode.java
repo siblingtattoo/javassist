@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -27,6 +28,7 @@ class ByteVector implements Cloneable {
         size = 0;
     }
 
+    @Override
     public Object clone() throws CloneNotSupportedException {
         ByteVector bv = (ByteVector)super.clone();
         bv.buffer = (byte[])buffer.clone();
@@ -95,17 +97,19 @@ class ByteVector implements Cloneable {
  * <p>A <code>Bytecode</code> object is an unbounded array
  * containing bytecode.  For example,
  *
- * <ul><pre>ConstPool cp = ...;    // constant pool table
+ * <pre>
+ * ConstPool cp = ...;    // constant pool table
  * Bytecode b = new Bytecode(cp, 1, 0);
  * b.addIconst(3);
  * b.addReturn(CtClass.intType);
- * CodeAttribute ca = b.toCodeAttribute();</ul></pre>
+ * CodeAttribute ca = b.toCodeAttribute();</pre>
  *
  * <p>This program produces a Code attribute including a bytecode
  * sequence:
  *
- * <ul><pre>iconst_3
- * ireturn</pre></ul>
+ * <pre>
+ * iconst_3
+ * ireturn</pre>
  *
  * @see ConstPool
  * @see CodeAttribute
@@ -161,6 +165,7 @@ public class Bytecode extends ByteVector implements Cloneable, Opcode {
      * The constant pool object is shared between this object
      * and the cloned object.
      */
+    @Override
     public Object clone() {
         try {
             Bytecode bc = (Bytecode)super.clone();
@@ -322,6 +327,7 @@ public class Bytecode extends ByteVector implements Cloneable, Opcode {
      *
      * @throws ArrayIndexOutOfBoundsException   if offset is invalid.
      */
+    @Override
     public int read(int offset) {
         return super.read(offset);
     }
@@ -352,6 +358,7 @@ public class Bytecode extends ByteVector implements Cloneable, Opcode {
      *
      * @throws ArrayIndexOutOfBoundsException   if offset is invalid.
      */
+    @Override
     public void write(int offset, int value) {
         super.write(offset, value);
     }
@@ -377,6 +384,7 @@ public class Bytecode extends ByteVector implements Cloneable, Opcode {
     /**
      * Appends an 8bit value to the end of the bytecode sequence.
      */
+    @Override
     public void add(int code) {
         super.add(code);
     }
@@ -393,6 +401,7 @@ public class Bytecode extends ByteVector implements Cloneable, Opcode {
      *
      * @param length    the gap length in byte.
      */
+    @Override
     public void addGap(int length) {
         super.addGap(length);
     }
@@ -923,11 +932,14 @@ public class Bytecode extends ByteVector implements Cloneable, Opcode {
      * @see Descriptor#ofConstructor(CtClass[])
      */
     public void addInvokespecial(CtClass clazz, String name, String desc) {
-        addInvokespecial(constPool.addClassInfo(clazz), name, desc);
+        boolean isInterface = clazz == null ? false : clazz.isInterface();
+        addInvokespecial(isInterface,
+                         constPool.addClassInfo(clazz), name, desc);
     }
 
     /**
-     * Appends INVOKESPECIAL.
+     * Appends INVOKESPECIAL.  The invoked method must not be a default
+     * method declared in an interface.
      *
      * @param clazz     the fully-qualified class name.
      * @param name      the method name
@@ -937,11 +949,12 @@ public class Bytecode extends ByteVector implements Cloneable, Opcode {
      * @see Descriptor#ofConstructor(CtClass[])
      */
     public void addInvokespecial(String clazz, String name, String desc) {
-        addInvokespecial(constPool.addClassInfo(clazz), name, desc);
+        addInvokespecial(false, constPool.addClassInfo(clazz), name, desc);
     }
 
     /**
-     * Appends INVOKESPECIAL.
+     * Appends INVOKESPECIAL.  The invoked method must not be a default
+     * method declared in an interface.
      *
      * @param clazz     the index of <code>CONSTANT_Class_info</code>
      *                  structure.
@@ -952,8 +965,45 @@ public class Bytecode extends ByteVector implements Cloneable, Opcode {
      * @see Descriptor#ofConstructor(CtClass[])
      */
     public void addInvokespecial(int clazz, String name, String desc) {
+        addInvokespecial(false, clazz, name, desc);
+    }
+
+    /**
+     * Appends INVOKESPECIAL.
+     *
+     * @param isInterface   true if the invoked method is a default method
+     *                      declared in an interface.
+     * @param clazz     the index of <code>CONSTANT_Class_info</code>
+     *                  structure.
+     * @param name      the method name
+     * @param desc      the descriptor of the method signature.
+     *
+     * @see Descriptor#ofMethod(CtClass,CtClass[])
+     * @see Descriptor#ofConstructor(CtClass[])
+     */
+    public void addInvokespecial(boolean isInterface, int clazz, String name, String desc) {
+        int index;
+        if (isInterface)
+            index = constPool.addInterfaceMethodrefInfo(clazz, name, desc);
+        else
+            index = constPool.addMethodrefInfo(clazz, name, desc);
+
+        addInvokespecial(index, desc);
+    }
+
+    /**
+     * Appends INVOKESPECIAL.
+     *
+     * @param index     the index of <code>CONSTANT_Methodref_info</code>
+     *                  or <code>CONSTANT_InterfaceMethodref_info</code>
+     * @param desc      the descriptor of the method signature.
+     *
+     * @see Descriptor#ofMethod(CtClass,CtClass[])
+     * @see Descriptor#ofConstructor(CtClass[])
+     */
+    public void addInvokespecial(int index, String desc) {
         add(INVOKESPECIAL);
-        addIndex(constPool.addMethodrefInfo(clazz, name, desc));
+        addIndex(index);
         growStack(Descriptor.dataSize(desc) - 1);
     }
 
@@ -981,13 +1031,20 @@ public class Bytecode extends ByteVector implements Cloneable, Opcode {
      * @see Descriptor#ofMethod(CtClass,CtClass[])
      */
     public void addInvokestatic(CtClass clazz, String name, String desc) {
-        addInvokestatic(constPool.addClassInfo(clazz), name, desc);
+        boolean isInterface;
+        if (clazz == THIS)
+            isInterface = false;
+        else
+            isInterface = clazz.isInterface();
+
+        addInvokestatic(constPool.addClassInfo(clazz), name, desc, isInterface);
     }
 
     /**
      * Appends INVOKESTATIC.
      *
      * @param classname the fully-qualified class name.
+     *                  It must not be an interface-type name.
      * @param name      the method name
      * @param desc      the descriptor of the method signature.
      *
@@ -1001,15 +1058,26 @@ public class Bytecode extends ByteVector implements Cloneable, Opcode {
      * Appends INVOKESTATIC.
      *
      * @param clazz     the index of <code>CONSTANT_Class_info</code>
-     *                  structure.
+     *                  structure.  It must not be an interface type.
      * @param name      the method name
      * @param desc      the descriptor of the method signature.
      *
      * @see Descriptor#ofMethod(CtClass,CtClass[])
      */
     public void addInvokestatic(int clazz, String name, String desc) {
+        addInvokestatic(clazz, name, desc, false);
+    }
+
+    private void addInvokestatic(int clazz, String name, String desc,
+                                 boolean isInterface) {
         add(INVOKESTATIC);
-        addIndex(constPool.addMethodrefInfo(clazz, name, desc));
+        int index;
+        if (isInterface)
+            index = constPool.addInterfaceMethodrefInfo(clazz, name, desc);
+        else
+            index = constPool.addMethodrefInfo(clazz, name, desc);
+
+        addIndex(index);
         growStack(Descriptor.dataSize(desc));
     }
 
@@ -1151,6 +1219,25 @@ public class Bytecode extends ByteVector implements Cloneable, Opcode {
         add(count);
         add(0);
         growStack(Descriptor.dataSize(desc) - 1);
+    }
+
+    /**
+     * Appends INVOKEDYNAMIC.
+     *
+     * @param bootstrap     an index into the <code>bootstrap_methods</code> array
+     *                      of the bootstrap method table.     
+     * @param name          the method name.
+     * @param desc          the method descriptor.
+     * @see Descriptor#ofMethod(CtClass,CtClass[])
+     * @since 3.17
+     */
+    public void addInvokedynamic(int bootstrap, String name, String desc) {
+        int nt = constPool.addNameAndTypeInfo(name, desc);
+        int dyn = constPool.addInvokeDynamicInfo(bootstrap, nt);
+        add(INVOKEDYNAMIC);
+        addIndex(dyn);
+        add(0, 0);
+        growStack(Descriptor.dataSize(desc));   // assume ConstPool#REF_invokeStatic
     }
 
     /**

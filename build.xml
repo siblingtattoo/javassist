@@ -6,18 +6,20 @@
 
 <project name="javassist" default="jar" basedir=".">
 
-  <property name="dist-version" value="javassist-3.13.GA"/>
+  <property name="dist-version" value="javassist-3.25.0-GA"/>
 
   <property environment="env"/>
   <property name="target.jar" value="javassist.jar"/>
   <property name="target-src.jar" value="javassist-src.jar"/>
   <property name="lib.dir" value="${basedir}/lib"/>
   <property name="src.dir" value="${basedir}/src/main"/>
-  <property name="build.dir" value="${basedir}/build"/>
+  <property name="build.dir" value="${basedir}/target"/>
   <property name="build.classes.dir" value="${build.dir}/classes"/>
   <property name="test.src.dir" value="${basedir}/src/test"/>
-  <property name="test.build.dir" value="${basedir}/build/test-classes"/>
-  <property name="test.reports.dir" value = "${basedir}/build/test-output"/>
+  <property name="test.lib.dir" value="${test.src.dir}/resources"/>
+  <property name="test.build.dir" value="${build.dir}/test-classes"/>
+  <property name="test.run.dir" value="${build.dir}/runtest"/>
+  <property name="test.reports.dir" value = "${build.dir}/test-output"/>
 
   <property name="run.dir" value="${build.classes.dir}"/>
 
@@ -31,13 +33,16 @@
   <path id="test.compile.classpath">
     <pathelement location="${build.classes.dir}"/>
     <pathelement location="${lib.dir}/junit.jar"/>
+    <pathelement location="${lib.dir}/hamcrest.jar"/>
   </path>
 
   <property name="test.compile.classpath" refid="test.compile.classpath"/>
 
   <path id="test.classpath">
     <pathelement location="${test.build.dir}"/>
+    <pathelement location="${test.lib.dir}"/>
     <pathelement location="${lib.dir}/junit.jar"/>
+    <pathelement location="${lib.dir}/hamcrest.jar"/>
     <pathelement location="${build.classes.dir}"/>
   </path>
 
@@ -50,7 +55,8 @@
     <mkdir dir="${build.dir}"/>
     <mkdir dir="${build.classes.dir}"/>
     <mkdir dir="${test.build.dir}"/>
-    <mkdir dir="${test.reports.dir}"/>
+  	<mkdir dir="${test.reports.dir}"/>
+  	<mkdir dir="${test.run.dir}"/>
   </target>
 
   <!-- =================================================================== -->
@@ -62,46 +68,66 @@
            debug="on"
            deprecation="on"
            optimize="off"
+    	   includeantruntime="true"
            includes="**">
             <classpath refid="classpath"/>
     </javac>
   </target>
 
-  <target name="compile14" depends="prepare">
+  <target name="compile18" depends="prepare">
     <javac srcdir="${src.dir}"
            destdir="${build.classes.dir}"
            debug="on"
            deprecation="on"
-	       source="1.4"
-	       target="1.4"
+	       source="1.7"
+	       target="1.7"
            optimize="off"
+    	   includeantruntime="true"
            includes="**">
       <classpath refid="classpath"/>
     </javac>
   </target>
-	
+
   <target name="test-compile" depends="compile">
     <javac srcdir="${test.src.dir}"
            destdir="${test.build.dir}"
            debug="on"
            deprecation="on"
            optimize="off"
+    	   includeantruntime="false"
            includes="**">
             <classpath refid="test.compile.classpath"/>
+            <compilerarg value="-parameters" />        
     </javac>
   </target>
 
-  <target name="test" depends="test-compile">
-    <junit fork="true" printsummary="true">
+  <target name="runtest" depends="jar,test-compile">
+    <copy file="${test.lib.dir}/empty.jar"
+          tofile="${test.lib.dir}/emptyorig.jar"
+          preservelastmodified="true" />
+    <junit fork="true" printsummary="true" dir="${test.run.dir}">
+      <jvmarg value="-XX:-FailOverToOldVerifier"/>
       <classpath refid="test.classpath"/>
-      <formatter type="plain"/>
-      <formatter type="xml"/>
-      <batchtest todir="${test.reports.dir}">
-         <fileset dir="${test.build.dir}">
-           <include name="**/*Test.*"/>
-         </fileset>
-      </batchtest>
+      <formatter type="xml" extension=".xml"/>
+      <test name="javassist.JvstTest" outfile="TestLog" />
     </junit>
+    <move file="${test.lib.dir}/emptyorig.jar"
+          tofile="${test.lib.dir}/empty.jar" />
+  </target>
+
+  <target name="runtest9" depends="jar,test-compile">
+    <copy file="${test.lib.dir}/empty.jar"
+          tofile="${test.lib.dir}/emptyorig.jar"
+          preservelastmodified="true" />
+    <junit fork="true" printsummary="true" dir="${test.run.dir}">
+      <jvmarg line="--add-opens java.base/java.lang=ALL-UNNAMED" />
+      <jvmarg value="-XX:-FailOverToOldVerifier"/>
+      <classpath refid="test.classpath"/>
+      <formatter type="xml" extension=".xml"/>
+      <test name="javassist.JvstTest" outfile="TestLog" />
+    </junit>
+    <move file="${test.lib.dir}/emptyorig.jar"
+          tofile="${test.lib.dir}/empty.jar" />
   </target>
 
   <target name="sample" depends="compile">
@@ -155,8 +181,8 @@
 to ${build.classes.dir}.</echo>
   </target>
 
-  <target name="jar" depends="compile14">
-    <jar jarfile="${target.jar}" manifest="${src.dir}/META-INF/MANIFEST.MF">
+  <target name="jar" depends="compile18">
+    <jar jarfile="${target.jar}" update="true" manifest="${src.dir}/META-INF/MANIFEST.MF">
       <fileset dir="${build.classes.dir}">
       	  <include name="**/*.class"/>
       </fileset>
@@ -185,12 +211,13 @@ to ${build.classes.dir}.</echo>
            windowtitle="Javassist API">
       <doctitle><![CDATA[<h1>Javassist</h1>]]></doctitle>
       <bottom><![CDATA[<i>Javassist, a Java-bytecode translator toolkit.<br>
-Copyright (C) 1999-2010 Shigeru Chiba. All Rights Reserved.</i>]]></bottom>
+Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.</i>]]></bottom>
     </javadoc>
   </target>
 
   <target name="dist" depends="jar,javadocs">
-    <delete file="${dist-version}.zip"/>
+  	<delete file="${dist-version}.zip"/>
+  	<delete file="TestLog.xml"/>
     <zip zipfile="${dist-version}.zip">
        <zipfileset dir="${basedir}" prefix="${dist-version}">
        	  <include name="html/**"/>
@@ -205,8 +232,8 @@ Copyright (C) 1999-2010 Shigeru Chiba. All Rights Reserved.</i>]]></bottom>
   </target>
 
   <target name="clean">
-    <delete dir="build"/>
     <delete dir="html"/>
+    <delete dir="${build.dir}"/>
     <delete file="${target.jar}"/>
     <delete file="${dist-version}.zip"/>
   </target>

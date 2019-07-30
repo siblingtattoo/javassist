@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,9 +16,22 @@
 
 package javassist.compiler;
 
-import javassist.*;
-import javassist.bytecode.*;
 import java.util.HashMap;
+import java.util.Map;
+
+import javassist.CannotCompileException;
+import javassist.ClassPool;
+import javassist.CtClass;
+import javassist.NotFoundException;
+import javassist.bytecode.AccessFlag;
+import javassist.bytecode.Bytecode;
+import javassist.bytecode.ClassFile;
+import javassist.bytecode.ConstPool;
+import javassist.bytecode.Descriptor;
+import javassist.bytecode.ExceptionsAttribute;
+import javassist.bytecode.FieldInfo;
+import javassist.bytecode.MethodInfo;
+import javassist.bytecode.SyntheticAttribute;
 
 /**
  * AccessorMaker maintains accessors to private members of an enclosing
@@ -26,14 +40,14 @@ import java.util.HashMap;
 public class AccessorMaker {
     private CtClass clazz;
     private int uniqueNumber;
-    private HashMap accessors;
+    private Map<String,Object> accessors;
 
     static final String lastParamType = "javassist.runtime.Inner";
 
     public AccessorMaker(CtClass c) {
         clazz = c;
         uniqueNumber = 1;
-        accessors = new HashMap();
+        accessors = new HashMap<String,Object>();
     }
 
     public String getConstructor(CtClass c, String desc, MethodInfo orig)
@@ -89,7 +103,7 @@ public class AccessorMaker {
      * @param accDesc   the descriptor of the accessor method.  The first
      *                  parameter type is <code>clazz</code>.
      *                  If the private method is static,
-     *              <code>accDesc<code> must be identical to <code>desc</code>. 
+     *              <code>accDesc</code> must be identical to <code>desc</code>. 
      *                  
      * @param orig      the method info of the private method.
      * @return

@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,9 +16,13 @@
 
 package javassist;
 
-import java.io.*;
-import java.net.URL;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLConnection;
+import java.net.URLStreamHandler;
 
 /**
  * A <code>ByteArrayClassPath</code> contains bytes that is served as
@@ -28,15 +33,15 @@ import java.net.MalformedURLException;
  * into a <code>CtClass</code> object representing the class with a name
  * <code>classname</code>, then do as following:
  *
- * <ul><pre>
+ * <pre>
  * ClassPool cp = ClassPool.getDefault();
  * cp.insertClassPath(new ByteArrayClassPath(classname, b));
  * CtClass cc = cp.get(classname);
- * </pre></ul>
+ * </pre>
  *
  * <p>The <code>ClassPool</code> object <code>cp</code> uses the created
  * <code>ByteArrayClassPath</code> object as the source of the class file.
- * 
+ *
  * <p>A <code>ByteArrayClassPath</code> must be instantiated for every
  * class.  It contains only a single class file.
  *
@@ -61,11 +66,7 @@ public class ByteArrayClassPath implements ClassPath {
         this.classfile = classfile;
     }
 
-    /**
-     * Closes this class path.
-     */
-    public void close() {}
-
+    @Override
     public String toString() {
         return "byte[]:" + classname;
     }
@@ -73,22 +74,22 @@ public class ByteArrayClassPath implements ClassPath {
     /**
      * Opens the class file.
      */
+    @Override
     public InputStream openClassfile(String classname) {
         if(this.classname.equals(classname))
             return new ByteArrayInputStream(classfile);
-        else
-            return null;
+        return null;
     }
 
     /**
      * Obtains the URL.
      */
+    @Override
     public URL find(String classname) {
         if(this.classname.equals(classname)) {
             String cname = classname.replace('.', '/') + ".class";
             try {
-                // return new File(cname).toURL();
-                return new URL("file:/ByteArrayClassPath/" + cname);
+                return new URL(null, "file:/ByteArrayClassPath/" + cname, new BytecodeURLStreamHandler());
             }
             catch (MalformedURLException e) {}
         }
@@ -98,5 +99,28 @@ public class ByteArrayClassPath implements ClassPath {
 
     public String getResource(String classname) {
         throw new RuntimeException();
+    }
+
+    private class BytecodeURLStreamHandler extends URLStreamHandler {
+        protected URLConnection openConnection(final URL u) {
+            return new BytecodeURLConnection(u);
+        }
+    }
+
+    private class BytecodeURLConnection extends URLConnection {
+        protected BytecodeURLConnection(URL url) {
+            super(url);
+        }
+
+        public void connect() throws IOException {
+        }
+
+        public InputStream getInputStream() throws IOException {
+            return new ByteArrayInputStream(classfile);
+        }
+
+        public int getContentLength() {
+            return classfile.length;
+        }
     }
 }

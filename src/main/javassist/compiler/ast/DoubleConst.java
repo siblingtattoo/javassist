@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -22,6 +23,8 @@ import javassist.compiler.TokenId;
  * Double constant.
  */
 public class DoubleConst extends ASTree {
+    /** default serialVersionUID */
+    private static final long serialVersionUID = 1L;
     protected double value;
     protected int type;
 
@@ -35,8 +38,10 @@ public class DoubleConst extends ASTree {
      */
     public int getType() { return type; }
 
+    @Override
     public String toString() { return Double.toString(value); }
 
+    @Override
     public void accept(Visitor v) throws CompileError {
         v.atDoubleConst(this);
     }
@@ -62,7 +67,7 @@ public class DoubleConst extends ASTree {
     }
 
     private DoubleConst compute0(int op, IntConst right) {
-        return compute(op, this.value, (double)right.value, this.type);
+        return compute(op, this.value, right.value, this.type);
     }
 
     private static DoubleConst compute(int op, double value1, double value2,

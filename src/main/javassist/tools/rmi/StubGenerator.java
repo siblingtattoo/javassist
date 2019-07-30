@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,17 +16,29 @@
 
 package javassist.tools.rmi;
 
-import javassist.*;
 import java.lang.reflect.Method;
 import java.util.Hashtable;
+import java.util.Map;
+
+import javassist.CannotCompileException;
+import javassist.ClassPool;
+import javassist.CtClass;
+import javassist.CtConstructor;
+import javassist.CtField;
+import javassist.CtMethod;
 import javassist.CtMethod.ConstParameter;
+import javassist.CtNewConstructor;
+import javassist.CtNewMethod;
+import javassist.Modifier;
+import javassist.NotFoundException;
+import javassist.Translator;
 
 /**
  * A stub-code generator.  It is used for producing a proxy class.
  *
  * <p>The proxy class for class A is as follows:
  *
- * <ul><pre>public class A implements Proxy, Serializable {
+ * <pre>public class A implements Proxy, Serializable {
  *   private ObjectImporter importer;
  *   private int objectId;
  *   public int _getObjectId() { return objectId; }
@@ -34,7 +47,7 @@ import javassist.CtMethod.ConstParameter;
  *   }
  *
  *   ... the same methods that the original class A declares ...
- * }</pre></ul>
+ * }</pre>
  *
  * <p>Instances of the proxy class is created by an
  * <code>ObjectImporter</code> object.
@@ -46,7 +59,7 @@ public class StubGenerator implements Translator {
     private static final String sampleClass = "javassist.tools.rmi.Sample";
 
     private ClassPool classPool;
-    private Hashtable proxyClasses;
+    private Map<String,CtClass> proxyClasses;
     private CtMethod forwardMethod;
     private CtMethod forwardStaticMethod;
 
@@ -58,7 +71,7 @@ public class StubGenerator implements Translator {
      * Constructs a stub-code generator.
      */
     public StubGenerator() {
-        proxyClasses = new Hashtable();
+        proxyClasses = new Hashtable<String,CtClass>();
     }
 
     /**
@@ -67,6 +80,7 @@ public class StubGenerator implements Translator {
      *
      * @see javassist.Translator#start(ClassPool)
      */
+    @Override
     public void start(ClassPool pool) throws NotFoundException {
         classPool = pool;
         CtClass c = pool.get(sampleClass);
@@ -88,6 +102,7 @@ public class StubGenerator implements Translator {
      * This is a method declared in javassist.Translator.
      * @see javassist.Translator#onLoad(ClassPool,String)
      */
+    @Override
     public void onLoad(ClassPool pool, String classname) {}
 
     /**
@@ -109,22 +124,20 @@ public class StubGenerator implements Translator {
      * @return          <code>false</code> if the proxy class
      *                  has been already produced.
      */
-    public synchronized boolean makeProxyClass(Class clazz)
+    public synchronized boolean makeProxyClass(Class<?> clazz)
         throws CannotCompileException, NotFoundException
     {
         String classname = clazz.getName();
         if (proxyClasses.get(classname) != null)
             return false;
-        else {
-            CtClass ctclazz = produceProxyClass(classPool.get(classname),
-                                                clazz);
-            proxyClasses.put(classname, ctclazz);
-            modifySuperclass(ctclazz);
-            return true;
-        }
+        CtClass ctclazz = produceProxyClass(classPool.get(classname),
+                                            clazz);
+        proxyClasses.put(classname, ctclazz);
+        modifySuperclass(ctclazz);
+        return true;
     }
 
-    private CtClass produceProxyClass(CtClass orgclass, Class orgRtClass)
+    private CtClass produceProxyClass(CtClass orgclass, Class<?> orgRtClass)
         throws CannotCompileException, NotFoundException
     {
         int modify = orgclass.getModifiers();
@@ -165,7 +178,7 @@ public class StubGenerator implements Translator {
         }
     }
 
-    private CtClass toCtClass(Class rtclass) throws NotFoundException {
+    private CtClass toCtClass(Class<?> rtclass) throws NotFoundException {
         String name;
         if (!rtclass.isArray())
             name = rtclass.getName();
@@ -178,11 +191,11 @@ public class StubGenerator implements Translator {
             sbuf.insert(0, rtclass.getName());
             name = sbuf.toString();
         }
-            
+
         return classPool.get(name);
     }
 
-    private CtClass[] toCtClass(Class[] rtclasses) throws NotFoundException {
+    private CtClass[] toCtClass(Class<?>[] rtclasses) throws NotFoundException {
         int n = rtclasses.length;
         CtClass[] ctclasses = new CtClass[n];
         for (int i = 0; i < n; ++i)

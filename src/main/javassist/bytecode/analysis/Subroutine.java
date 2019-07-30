@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba, and others. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -27,17 +28,17 @@ import java.util.Set;
  */
 public class Subroutine {
     //private Set callers = new HashSet();
-    private List callers = new ArrayList();
-    private Set access = new HashSet();
+    private List<Integer> callers = new ArrayList<Integer>();
+    private Set<Integer> access = new HashSet<Integer>();
     private int start;
 
     public Subroutine(int start, int caller) {
         this.start = start;
-        callers.add(new Integer(caller));
+        callers.add(caller);
     }
 
     public void addCaller(int caller) {
-        callers.add(new Integer(caller));
+        callers.add(caller);
     }
 
     public int start() {
@@ -45,21 +46,22 @@ public class Subroutine {
     }
 
     public void access(int index) {
-        access.add(new Integer(index));
+        access.add(index);
     }
 
     public boolean isAccessed(int index) {
-        return access.contains(new Integer(index));
+        return access.contains(index);
     }
 
-    public Collection accessed() {
+    public Collection<Integer> accessed() {
         return access;
     }
 
-    public Collection callers() {
+    public Collection<Integer> callers() {
         return callers;
     }
 
+    @Override
     public String toString() {
         return "start = " + start + " callers = " + callers.toString();
     }

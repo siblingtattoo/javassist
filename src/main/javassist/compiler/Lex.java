@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -31,6 +32,7 @@ public class Lex implements TokenId {
     private Token lookAheadTokens;
 
     private String input;
+    @SuppressWarnings("unused")
     private int position, maxlen, lineNumber;
 
     /**
@@ -51,12 +53,10 @@ public class Lex implements TokenId {
     public int get() {
         if (lookAheadTokens == null)
             return get(currentToken);
-        else {
-            Token t;
-            currentToken = t = lookAheadTokens;
-            lookAheadTokens = lookAheadTokens.next;
-            return t.tokenId;
-        }
+        Token t;
+        currentToken = t = lookAheadTokens;
+        lookAheadTokens = lookAheadTokens.next;
+        return t.tokenId;
     }
 
     /**
@@ -128,15 +128,12 @@ public class Lex implements TokenId {
                 tbuf.append('.');
                 return readDouble(tbuf, c, token);
             }
-            else{
-                ungetc(c);
-                return readSeparator('.');
-            }
+            ungetc(c);
+            return readSeparator('.');
         }
         else if (Character.isJavaIdentifierStart((char)c))
             return readIdentifier(c, token);
-        else
-            return readSeparator(c);
+        return readSeparator(c);
     }
 
     private int getNextNonWhiteChar() {
@@ -248,19 +245,17 @@ public class Lex implements TokenId {
                 for (;;) {
                     c = getc();
                     if ('0' <= c && c <= '9')
-                        value = value * 16 + (long)(c - '0');
+                        value = value * 16 + (c - '0');
                     else if ('A' <= c && c <= 'F')
-                        value = value * 16 + (long)(c - 'A' + 10);
+                        value = value * 16 + (c - 'A' + 10);
                     else if ('a' <= c && c <= 'f')
-                        value = value * 16 + (long)(c - 'a' + 10);
+                        value = value * 16 + (c - 'a' + 10);
                     else {
                         token.longValue = value;
                         if (c == 'L' || c == 'l')
                             return LongConstant;
-                        else {
-                            ungetc(c);
-                            return IntConstant;
-                        }
+                        ungetc(c);
+                        return IntConstant;
                     }
                 }
             else if ('0' <= c2 && c2 <= '7') {
@@ -268,15 +263,13 @@ public class Lex implements TokenId {
                 for (;;) {
                     c = getc();
                     if ('0' <= c && c <= '7')
-                        value = value * 8 + (long)(c - '0');
+                        value = value * 8 + (c - '0');
                     else {
                         token.longValue = value;
                         if (c == 'L' || c == 'l')
                             return LongConstant;
-                        else {
-                            ungetc(c);
-                            return IntConstant;
-                        }
+                        ungetc(c);
+                        return IntConstant;
                     }
                 }
             }
@@ -289,7 +282,7 @@ public class Lex implements TokenId {
 
         token.longValue = value;
         if (c2 == 'F' || c2 == 'f') {
-            token.doubleValue = (double)value;
+            token.doubleValue = value;
             return FloatConstant;
         }
         else if (c2 == 'E' || c2 == 'e'
@@ -342,12 +335,10 @@ public class Lex implements TokenId {
 
         if (c == 'F' || c == 'f')
             return FloatConstant;
-        else {
-            if (c != 'D' && c != 'd')
-                ungetc(c);
+        if (c != 'D' && c != 'd')
+            ungetc(c);
 
-            return DoubleConstant;
-        }
+        return DoubleConstant;
     }
 
     // !"#$%&'(    )*+,-./0    12345678    9:;<=>?
@@ -361,51 +352,45 @@ public class Lex implements TokenId {
         int c2, c3;
         if ('!' <= c && c <= '?') {
             int t = equalOps[c - '!'];
-            if (t == 0) 
+            if (t == 0)
                 return c;
-            else {
-                c2 = getc();
-                if (c == c2)
-                    switch (c) {
-                    case '=' :
-                        return EQ;
-                    case '+' :
-                        return PLUSPLUS;
-                    case '-' :
-                        return MINUSMINUS;
-                    case '&' :
-                        return ANDAND;
-                    case '<' :
+            c2 = getc();
+            if (c == c2)
+                switch (c) {
+                case '=' :
+                    return EQ;
+                case '+' :
+                    return PLUSPLUS;
+                case '-' :
+                    return MINUSMINUS;
+                case '&' :
+                    return ANDAND;
+                case '<' :
+                    c3 = getc();
+                    if (c3 == '=')
+                        return LSHIFT_E;
+                    ungetc(c3);
+                    return LSHIFT;
+                case '>' :
+                    c3 = getc();
+                    if (c3 == '=')
+                        return RSHIFT_E;
+                    else if (c3 == '>') {
                         c3 = getc();
                         if (c3 == '=')
-                            return LSHIFT_E;
-                        else {
-                            ungetc(c3);
-                            return LSHIFT;
-                        }
-                    case '>' :
-                        c3 = getc();
-                        if (c3 == '=')
-                            return RSHIFT_E;
-                        else if (c3 == '>') {
-                            c3 = getc();
-                            if (c3 == '=')
-                                return ARSHIFT_E;
-                            else {
-                                ungetc(c3);
-                                return ARSHIFT;
-                            }
-                        }
-                        else {
-                            ungetc(c3);
-                            return RSHIFT;
-                        }
-                    default :
-                        break;
+                            return ARSHIFT_E;
+                        ungetc(c3);
+                        return ARSHIFT;
                     }
-                else if (c2 == '=')
-                    return t;
-            }
+                    else {
+                        ungetc(c3);
+                        return RSHIFT;
+                    }
+                default :
+                    break;
+                }
+            else if (c2 == '=')
+                return t;
         }
         else if (c == '^') {
             c2 = getc();
@@ -441,17 +426,15 @@ public class Lex implements TokenId {
         int t = ktable.lookup(name);
         if (t >= 0)
             return t;
-        else {
-            /* tbuf.toString() is executed quickly since it does not
-             * need memory copy.  Using a hand-written extensible
-             * byte-array class instead of StringBuffer is not a good idea
-             * for execution speed.  Converting a byte array to a String
-             * object is very slow.  Using an extensible char array
-             * might be OK.
-             */
-            token.textValue = name;
-            return Identifier;
-        }
+        /* tbuf.toString() is executed quickly since it does not
+         * need memory copy.  Using a hand-written extensible
+         * byte-array class instead of StringBuffer is not a good idea
+         * for execution speed.  Converting a byte array to a String
+         * object is very slow.  Using an extensible char array
+         * might be OK.
+         */
+        token.textValue = name;
+        return Identifier;
     }
 
     private static final KeywordTable ktable = new KeywordTable();
@@ -515,6 +498,7 @@ public class Lex implements TokenId {
             || c == '\n';
     }
 
+    @SuppressWarnings("unused")
     private static boolean isDigit(int c) {
         return '0' <= c && c <= '9';
     }
@@ -541,10 +525,8 @@ public class Lex implements TokenId {
                 return input.charAt(position++);
             else
                 return -1;
-        else {
-            int c = lastChar;
-            lastChar = -1;
-            return c;
-        }
+        int c = lastChar;
+        lastChar = -1;
+        return c;
     }
 }

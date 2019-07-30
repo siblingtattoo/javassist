@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,9 +16,27 @@
 
 package javassist;
 
-import javassist.bytecode.*;
-import javassist.compiler.Javac;
+import javassist.bytecode.AccessFlag;
+import javassist.bytecode.AnnotationsAttribute;
+import javassist.bytecode.AttributeInfo;
+import javassist.bytecode.BadBytecode;
+import javassist.bytecode.Bytecode;
+import javassist.bytecode.CodeAttribute;
+import javassist.bytecode.CodeIterator;
+import javassist.bytecode.ConstPool;
+import javassist.bytecode.Descriptor;
+import javassist.bytecode.ExceptionsAttribute;
+import javassist.bytecode.LineNumberAttribute;
+import javassist.bytecode.LocalVariableAttribute;
+import javassist.bytecode.LocalVariableTypeAttribute;
+import javassist.bytecode.MethodInfo;
+import javassist.bytecode.Opcode;
+import javassist.bytecode.ParameterAnnotationsAttribute;
+import javassist.bytecode.SignatureAttribute;
+import javassist.bytecode.StackMap;
+import javassist.bytecode.StackMapTable;
 import javassist.compiler.CompileError;
+import javassist.compiler.Javac;
 import javassist.expr.ExprEditor;
 
 /**
@@ -25,6 +44,11 @@ import javassist.expr.ExprEditor;
  * or a static constructor (class initializer). 
  * It is the abstract super class of
  * <code>CtMethod</code> and <code>CtConstructor</code>.
+ *
+ * <p>To directly read or modify bytecode, obtain <code>MethodInfo</code>
+ * objects.
+ *
+ * @see #getMethodInfo()
  */
 public abstract class CtBehavior extends CtMember {
     protected MethodInfo methodInfo;
@@ -75,6 +99,7 @@ public abstract class CtBehavior extends CtMember {
         }
     }
 
+    @Override
     protected void extendToString(StringBuffer buffer) {
         buffer.append(' ');
         buffer.append(getName());
@@ -91,8 +116,15 @@ public abstract class CtBehavior extends CtMember {
     public abstract String getLongName();
 
     /**
-     * Returns the MethodInfo representing this method/constructor in the
+     * Returns the <code>MethodInfo</code> representing this method/constructor in the
      * class file.
+     *
+     * <p>If you modify the bytecode through the returned
+     * <code>MethodInfo</code> object, you might have to explicitly
+     * rebuild a stack map table.  Javassist does not automatically
+     * rebuild it for avoiding unnecessary rebuilding.
+     *
+     * @see javassist.bytecode.MethodInfo#rebuildStackMap(ClassPool)
      */
     public MethodInfo getMethodInfo() {
         declaringClass.checkModify();
@@ -100,7 +132,7 @@ public abstract class CtBehavior extends CtMember {
     }
 
     /**
-     * Returns the MethodInfo representing the method/constructor in the
+     * Returns the <code>MethodInfo</code> representing the method/constructor in the
      * class file (read only).
      * Normal applications do not need calling this method.  Use
      * <code>getMethodInfo()</code>.
@@ -127,6 +159,7 @@ public abstract class CtBehavior extends CtMember {
      *                  <code>javassist.Modifier</code>.
      * @see Modifier
      */
+    @Override
     public int getModifiers() {
         return AccessFlag.toModifier(methodInfo.getAccessFlags());
     }
@@ -140,26 +173,28 @@ public abstract class CtBehavior extends CtMember {
      *
      * @see Modifier
      */
+    @Override
     public void setModifiers(int mod) {
         declaringClass.checkModify();
         methodInfo.setAccessFlags(AccessFlag.of(mod));
     }
 
     /**
-     * Returns true if the class has the specified annotation class.
+     * Returns true if the class has the specified annotation type.
      *
-     * @param clz the annotation class.
+     * @param typeName      the name of annotation type.
      * @return <code>true</code> if the annotation is found,
      *         otherwise <code>false</code>.
-     * @since 3.11
+     * @since 3.21
      */
-    public boolean hasAnnotation(Class clz) {
+    @Override
+    public boolean hasAnnotation(String typeName) {
        MethodInfo mi = getMethodInfo2();
        AnnotationsAttribute ainfo = (AnnotationsAttribute)
                    mi.getAttribute(AnnotationsAttribute.invisibleTag);  
        AnnotationsAttribute ainfo2 = (AnnotationsAttribute)
                    mi.getAttribute(AnnotationsAttribute.visibleTag);  
-       return CtClassType.hasAnnotationType(clz,
+       return CtClassType.hasAnnotationType(typeName,
                                             getDeclaringClass().getClassPool(),
                                             ainfo, ainfo2);
     }
@@ -175,7 +210,8 @@ public abstract class CtBehavior extends CtMember {
      * @return the annotation if found, otherwise <code>null</code>.
      * @since 3.11
      */
-    public Object getAnnotation(Class clz) throws ClassNotFoundException {
+    @Override
+    public Object getAnnotation(Class<?> clz) throws ClassNotFoundException {
        MethodInfo mi = getMethodInfo2();
        AnnotationsAttribute ainfo = (AnnotationsAttribute)
                    mi.getAttribute(AnnotationsAttribute.invisibleTag);  
@@ -193,6 +229,7 @@ public abstract class CtBehavior extends CtMember {
      * @see #getAvailableAnnotations()
      * @since 3.1
      */
+    @Override
     public Object[] getAnnotations() throws ClassNotFoundException {
        return getAnnotations(false);
    }
@@ -206,6 +243,7 @@ public abstract class CtBehavior extends CtMember {
      * @see #getAnnotations()
      * @since 3.3
      */
+    @Override
     public Object[] getAvailableAnnotations(){
        try{
            return getAnnotations(true);
@@ -306,17 +344,44 @@ public abstract class CtBehavior extends CtMember {
      *
      * <p>Note that the returned string is not the type signature
      * contained in the <code>SignatureAttirbute</code>.  It is
-     * a descriptor.  To obtain a type signature, call the following
-     * methods:
-     * 
-     * <ul><pre>getMethodInfo().getAttribute(SignatureAttribute.tag)
-     * </pre></ul>
+     * a descriptor.
      *
      * @see javassist.bytecode.Descriptor
-     * @see javassist.bytecode.SignatureAttribute
+     * @see #getGenericSignature()
      */
+    @Override
     public String getSignature() {
         return methodInfo.getDescriptor();
+    }
+
+    /**
+     * Returns the generic signature of the method.
+     * It represents parameter types including type variables.
+     *
+     * @see SignatureAttribute#toMethodSignature(String)
+     * @since 3.17
+     */
+    @Override
+    public String getGenericSignature() {
+        SignatureAttribute sa
+            = (SignatureAttribute)methodInfo.getAttribute(SignatureAttribute.tag);
+        return sa == null ? null : sa.getSignature();
+    }
+
+    /**
+     * Set the generic signature of the method.
+     * It represents parameter types including type variables.
+     * See {@link javassist.CtClass#setGenericSignature(String)}
+     * for a code sample.
+     *
+     * @param sig       a new generic signature.
+     * @see javassist.bytecode.SignatureAttribute.MethodSignature#encode()
+     * @since 3.17
+     */
+    @Override
+    public void setGenericSignature(String sig) {
+        declaringClass.checkModify();
+        methodInfo.addAttribute(new SignatureAttribute(methodInfo.getConstPool(), sig));
     }
 
     /**
@@ -452,12 +517,13 @@ public abstract class CtBehavior extends CtMember {
      *
      * @param name              attribute name
      */
-    public byte[] getAttribute(String name) {
+    @Override
+    public byte[] getAttribute(String name)
+    {
         AttributeInfo ai = methodInfo.getAttribute(name);
         if (ai == null)
             return null;
-        else
-            return ai.get();
+        return ai.get();
     }
 
     /**
@@ -470,7 +536,9 @@ public abstract class CtBehavior extends CtMember {
      * @param name      attribute name
      * @param data      attribute value
      */
-    public void setAttribute(String name, byte[] data) {
+    @Override
+    public void setAttribute(String name, byte[] data)
+    {
         declaringClass.checkModify();
         methodInfo.addAttribute(new AttributeInfo(methodInfo.getConstPool(),
                                                   name, data));
@@ -493,7 +561,8 @@ public abstract class CtBehavior extends CtMember {
      *
      * @see javassist.runtime.Cflow
      */
-    public void useCflow(String name) throws CannotCompileException {
+    public void useCflow(String name) throws CannotCompileException
+    {
         CtClass cc = declaringClass;
         cc.checkModify();
         ClassPool pool = cc.getClassPool();
@@ -619,10 +688,14 @@ public abstract class CtBehavior extends CtMember {
 
             ca.insertLocalVar(where, size);
             LocalVariableAttribute va
-                            = (LocalVariableAttribute)
-                              ca.getAttribute(LocalVariableAttribute.tag);
+                = (LocalVariableAttribute)ca.getAttribute(LocalVariableAttribute.tag);
             if (va != null)
                 va.shiftIndex(where, size);
+
+            LocalVariableTypeAttribute lvta
+                = (LocalVariableTypeAttribute)ca.getAttribute(LocalVariableTypeAttribute.tag);
+            if (lvta != null)
+                lvta.shiftIndex(where, size);
 
             StackMapTable smt = (StackMapTable)ca.getAttribute(StackMapTable.tag);
             if (smt != null)
@@ -650,7 +723,15 @@ public abstract class CtBehavior extends CtMember {
     /**
      * Modifies the method/constructor body.
      *
+     * <p>While executing this method, only <code>replace()</code>
+     * in <code>Expr</code> is available for bytecode modification.
+     * Other methods such as <code>insertBefore()</code> may collapse
+     * the bytecode because the <code>ExprEditor</code> loses
+     * its current position.  
+     *
      * @param editor            specifies how to modify.
+     * @see javassist.expr.Expr#replace(String)
+     * @see #insertBefore(String)
      */
     public void instrument(ExprEditor editor)
         throws CannotCompileException
@@ -701,7 +782,7 @@ public abstract class CtBehavior extends CtMember {
                                         Modifier.isStatic(getModifiers()));
             jv.recordParamNames(ca, nvars);
             jv.recordLocalVariables(ca, 0);
-            jv.recordType(getReturnType0());
+            jv.recordReturnType(getReturnType0(), false);
             jv.compileStmnt(src);
             Bytecode b = jv.getBytecode();
             int stack = b.getMaxStack();
@@ -781,35 +862,44 @@ public abstract class CtBehavior extends CtMember {
             // finally clause for exceptions
             int handlerLen = insertAfterHandler(asFinally, b, rtype, varNo,
                                                 jv, src);
-            // finally clause for normal termination
-            insertAfterAdvice(b, jv, src, pool, rtype, varNo);
-
-            ca.setMaxStack(b.getMaxStack());
-            ca.setMaxLocals(b.getMaxLocals());
-
-            int gapPos = iterator.append(b.get());
-            iterator.append(b.getExceptionTable(), gapPos);
-
+            int handlerPos = iterator.getCodeLength();
             if (asFinally)
-                ca.getExceptionTable().add(getStartPosOfBody(ca), gapPos, gapPos, 0); 
+                ca.getExceptionTable().add(getStartPosOfBody(ca), handlerPos, handlerPos, 0); 
 
-            int gapLen = iterator.getCodeLength() - gapPos - handlerLen;
-            int subr = iterator.getCodeLength() - gapLen;
-
+            int adviceLen = 0;
+            int advicePos = 0;
+            boolean noReturn = true;
             while (iterator.hasNext()) {
                 int pos = iterator.next();
-                if (pos >= subr)
+                if (pos >= handlerPos)
                     break;
 
                 int c = iterator.byteAt(pos);
                 if (c == Opcode.ARETURN || c == Opcode.IRETURN
                     || c == Opcode.FRETURN || c == Opcode.LRETURN
                     || c == Opcode.DRETURN || c == Opcode.RETURN) {
-                    insertGoto(iterator, subr, pos);
-                    subr = iterator.getCodeLength() - gapLen;
+                    if (noReturn) {
+                        // finally clause for normal termination
+                        adviceLen = insertAfterAdvice(b, jv, src, pool, rtype, varNo);
+                        handlerPos = iterator.append(b.get());
+                        iterator.append(b.getExceptionTable(), handlerPos);
+                        advicePos = iterator.getCodeLength() - adviceLen;
+                        handlerLen = advicePos - handlerPos;
+                        noReturn = false;
+                    }
+                    insertGoto(iterator, advicePos, pos);
+                    advicePos = iterator.getCodeLength() - adviceLen;
+                    handlerPos = advicePos - handlerLen;
                 }
             }
 
+            if (noReturn) {
+                handlerPos = iterator.append(b.get());
+                iterator.append(b.getExceptionTable(), handlerPos);
+            }
+
+            ca.setMaxStack(b.getMaxStack());
+            ca.setMaxLocals(b.getMaxLocals());
             methodInfo.rebuildStackMapIf6(cc.getClassPool(), cc.getClassFile2());
         }
         catch (NotFoundException e) {
@@ -823,10 +913,11 @@ public abstract class CtBehavior extends CtMember {
         }
     }
 
-    private void insertAfterAdvice(Bytecode code, Javac jv, String src,
-                                   ConstPool cp, CtClass rtype, int varNo)
+    private int insertAfterAdvice(Bytecode code, Javac jv, String src,
+                                  ConstPool cp, CtClass rtype, int varNo)
         throws CompileError
     {
+        int pc = code.currentPc();
         if (rtype == CtClass.voidType) {
             code.addOpcode(Opcode.ACONST_NULL);
             code.addAstore(varNo);
@@ -844,6 +935,8 @@ public abstract class CtBehavior extends CtMember {
             else
                 code.addOpcode(Opcode.ARETURN);
         }
+
+        return code.currentPc() - pc;
     }
 
     /*
@@ -856,7 +949,9 @@ public abstract class CtBehavior extends CtMember {
         // the gap length might be a multiple of 4.
         iterator.writeByte(Opcode.NOP, pos);
         boolean wide = subr + 2 - pos > Short.MAX_VALUE;
-        pos = iterator.insertGapAt(pos, wide ? 4 : 2, false).position;
+        int len = wide ? 4 : 2;
+        CodeIterator.Gap gap = iterator.insertGapAt(pos, len, false);
+        pos = gap.position + gap.length - len;
         int offset = iterator.getMark() - pos;
         if (wide) {
             iterator.writeByte(Opcode.GOTO_W, pos);
@@ -867,7 +962,11 @@ public abstract class CtBehavior extends CtMember {
             iterator.write16bit(offset, pos + 1);
         }
         else {
-            pos = iterator.insertGapAt(pos, 2, false).position;
+            if (gap.length < 4) {
+                CodeIterator.Gap gap2 =  iterator.insertGapAt(gap.position, 2, false);
+                pos = gap2.position + gap2.length + gap.length - 4; 
+            }
+
             iterator.writeByte(Opcode.GOTO_W, pos);
             iterator.write32bit(iterator.getMark() - pos, pos + 1);
         }
