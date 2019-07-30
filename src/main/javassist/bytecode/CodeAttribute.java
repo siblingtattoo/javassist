@@ -266,7 +266,11 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
     /**
      * Sets <code>code[]</code>.
      */
-    void setCode(byte[] newinfo) { super.set(newinfo); }
+    void setCode(byte[] newinfo) throws BadBytecode {
+        if (newinfo.length > 65535)
+            throw new BadBytecode("Bytecode size exceeded 65535");
+		super.set(newinfo);
+	}
 
     /**
      * Makes a new iterator for reading this code attribute.

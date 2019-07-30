@@ -92,4 +92,8 @@ public class LoaderClassPath implements ClassPath {
     public void close() {
         clref = null;
     }
+
+    public String getResource(String classname) {
+        throw new RuntimeException();
+    }
 }

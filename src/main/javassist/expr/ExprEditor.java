@@ -15,6 +15,7 @@
 
 package javassist.expr;
 
+import javassist.compiler.*;
 import javassist.bytecode.*;
 import javassist.CtClass;
 import javassist.CannotCompileException;
@@ -67,6 +68,7 @@ import javassist.CannotCompileException;
  * @see javassist.CodeConverter
  */
 public class ExprEditor {
+	private int numAdded;
     /**
      * Default constructor.  It does nothing.
      */
@@ -86,9 +88,20 @@ public class ExprEditor {
         boolean edited = false;
         LoopContext context = new LoopContext(codeAttr.getMaxLocals());
 
-        while (iterator.hasNext())
-            if (loopBody(iterator, clazz, minfo, context))
+
+		numAdded = 0;
+		int originalLen = iterator.getCodeLength();
+        while (iterator.hasNext()) {
+            if (loopBody(iterator, clazz, minfo, context)) {
+                int currentLen = iterator.getCodeLength();
+                numAdded = currentLen - originalLen;
                 edited = true;
+            } else {
+                int currentLen = iterator.getCodeLength();
+                assert (currentLen == numAdded + originalLen);
+
+            }
+        }
 
         ExceptionTable et = codeAttr.getExceptionTable();
         int n = et.size();
@@ -143,11 +156,13 @@ public class ExprEditor {
     final static class NewOp {
         NewOp next;
         int pos;
+		int adjustedPos;
         String type;
 
-        NewOp(NewOp n, int p, String t) {
+        NewOp(NewOp n, int p, int p2, String t) {
             next = n;
             pos = p;
+			adjustedPos = p2;
             type = t;
         }
     }
@@ -177,28 +192,56 @@ public class ExprEditor {
         throws CannotCompileException
     {
         try {
-            Expr expr = null;
-            int pos = iterator.next();
-            int c = iterator.byteAt(pos);
-
-            if (c < Opcode.GETSTATIC)   // c < 178
-                /* skip */;
-            else if (c < Opcode.NEWARRAY) { // c < 188
-                if (c == Opcode.INVOKESTATIC
+			Expr expr = null;
+			int pos = iterator.next();
+			int c = iterator.byteAt(pos);
+			String s = insertBefore(pos - numAdded);
+			int numInsertedBefore;
+			if (s != null) {
+				CodeAttribute ca = iterator.get();
+				int paramVar = ca.getMaxLocals();
+				Javac jc = new Javac(clazz);
+				try {
+					jc.compileStmnt(s);
+				} catch (CompileError ex) { throw new RuntimeException(ex); }
+				Bytecode bc = jc.getBytecode();
+				byte[] code = bc.get();
+				numInsertedBefore = iterator.insertGap(pos, code.length);
+				iterator.write(code, pos);
+				iterator.insert(bc.getExceptionTable(), pos);  // TODO: check
+				int maxLocals = bc.getMaxLocals();
+				int maxStack = bc.getMaxStack();
+				context.updateMax(maxLocals, maxStack);
+			} else
+				numInsertedBefore = 0;
+			int newPos = pos + numInsertedBefore;
+			assert (iterator.byteAt(newPos) == c);
+			int adjustedPos = pos - numAdded;
+			pos = newPos;
+			if (c < Opcode.GETSTATIC) {  // c < 178
+				if ((c >= Opcode.IALOAD  && c <= Opcode.SALOAD) ||
+					(c >= Opcode.IASTORE && c <= Opcode.SASTORE)) {
+					expr = new ArrayAccess(pos, adjustedPos, iterator, clazz, minfo, c);
+					edit((ArrayAccess)expr);
+				} else {
+					/* skip */;
+				}
+			} else if (c < Opcode.NEWARRAY) { // c < 188
+				if (c == Opcode.INVOKESTATIC
                     || c == Opcode.INVOKEINTERFACE
                     || c == Opcode.INVOKEVIRTUAL) {
-                    expr = new MethodCall(pos, iterator, clazz, minfo);
+                    expr = new MethodCall(pos, adjustedPos, iterator, clazz, minfo);
                     edit((MethodCall)expr);
                 }
                 else if (c == Opcode.GETFIELD || c == Opcode.GETSTATIC
                          || c == Opcode.PUTFIELD
                          || c == Opcode.PUTSTATIC) {
-                    expr = new FieldAccess(pos, iterator, clazz, minfo, c);
+                    expr = new FieldAccess(pos, adjustedPos, iterator, clazz, minfo, c);
                     edit((FieldAccess)expr);
                 }
                 else if (c == Opcode.NEW) {
                     int index = iterator.u16bitAt(pos + 1);
-                    context.newList = new NewOp(context.newList, pos,
+                    context.newList = new NewOp(context.newList, pos, adjustedPos,
                                         minfo.getConstPool().getClassInfo(index));
                 }
                 else if (c == Opcode.INVOKESPECIAL) {
@@ -206,15 +249,15 @@ public class ExprEditor {
                     if (newList != null
                         && minfo.getConstPool().isConstructor(newList.type,
                                             iterator.u16bitAt(pos + 1)) > 0) {
-                        expr = new NewExpr(pos, iterator, clazz, minfo,
+                        expr = new NewExpr(pos, newList.adjustedPos, iterator, clazz, minfo,
                                            newList.type, newList.pos);
                         edit((NewExpr)expr);
                         context.newList = newList.next;
                     }
                     else {
-                        MethodCall mcall = new MethodCall(pos, iterator, clazz, minfo);
+                        MethodCall mcall = new MethodCall(pos, adjustedPos, iterator, clazz, minfo);
                         if (mcall.getMethodName().equals(MethodInfo.nameInit)) {
-                            ConstructorCall ccall = new ConstructorCall(pos, iterator, clazz, minfo);
+                            ConstructorCall ccall = new ConstructorCall(pos, adjustedPos, iterator, clazz, minfo);
                             expr = ccall;
                             edit(ccall);
                         }
@@ -225,20 +268,26 @@ public class ExprEditor {
                     }
                 }
             }
-            else {  // c >= 188
+			else {  // c >= 188
                 if (c == Opcode.NEWARRAY || c == Opcode.ANEWARRAY
                     || c == Opcode.MULTIANEWARRAY) {
-                    expr = new NewArray(pos, iterator, clazz, minfo, c);
+                    expr = new NewArray(pos, adjustedPos, iterator, clazz, minfo, c);
                     edit((NewArray)expr);
                 }
-                else if (c == Opcode.INSTANCEOF) {
-                    expr = new Instanceof(pos, iterator, clazz, minfo);
+				else if (c == Opcode.INSTANCEOF) {
+                    expr = new Instanceof(pos, adjustedPos, iterator, clazz, minfo);
                     edit((Instanceof)expr);
                 }
-                else if (c == Opcode.CHECKCAST) {
-                    expr = new Cast(pos, iterator, clazz, minfo);
+				else if (c == Opcode.CHECKCAST) {
+                    expr = new Cast(pos, adjustedPos, iterator, clazz, minfo);
                     edit((Cast)expr);
-                }
+				} else if (c == Opcode.MONITOREXIT) {
+					expr = new MonitorExit(pos, adjustedPos, iterator, clazz, minfo);
+					edit((MonitorExit)expr);
+				} else if (c == Opcode.MONITORENTER) {
+					expr = new MonitorEnter(pos, adjustedPos, iterator, clazz, minfo);
+					edit((MonitorEnter)expr);
+				}
             }
 
             if (expr != null && expr.edited()) {
@@ -246,7 +295,7 @@ public class ExprEditor {
                 return true;
             }
             else
-                return false;
+                return numInsertedBefore > 0;
         }
         catch (BadBytecode e) {
             throw new CannotCompileException(e);
@@ -313,4 +362,14 @@ public class ExprEditor {
      * The default implementation performs nothing.
      */
     public void edit(Handler h) throws CannotCompileException {}
+
+    public void edit(ArrayAccess a) throws CannotCompileException {}
+
+    public void edit(MonitorEnter e) throws CannotCompileException {}
+
+    public void edit(MonitorExit e) throws CannotCompileException {}
+
+	public String insertBefore(int pos) {
+		return null;
+	}
 }

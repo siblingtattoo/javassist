@@ -1101,4 +1101,8 @@ public class ClassPool {
             method.setAccessible(false);
         }
     }
+
+    public String getResource(String classname) {
+        return source.getResource(classname);
+    }
 }

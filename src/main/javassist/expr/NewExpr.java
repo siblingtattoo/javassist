@@ -30,9 +30,9 @@ public class NewExpr extends Expr {
     /**
      * Undocumented constructor.  Do not use; internal-use only.
      */
-    protected NewExpr(int pos, CodeIterator i, CtClass declaring,
+    protected NewExpr(int pos, int adjustedPos, CodeIterator i, CtClass declaring,
                       MethodInfo m, String type, int np) {
-        super(pos, i, declaring, m);
+        super(pos, adjustedPos, i, declaring, m);
         newTypeName = type;
         newPos = np;
     }
@@ -50,6 +50,10 @@ public class NewExpr extends Expr {
         else
             return cp.getMethodrefNameAndType(index);
     } */
+
+	public int indexOfBytecode() {
+		return newPos;
+	}
 
     /**
      * Returns the method or constructor containing the <tt>new</tt>

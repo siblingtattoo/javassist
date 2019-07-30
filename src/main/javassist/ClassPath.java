@@ -64,4 +64,6 @@ public interface ClassPath {
      * classes.
      */
     void close();
+
+    String getResource(String classname);
 }

@@ -90,6 +90,10 @@ public class ClassClassPath implements ClassPath {
     public void close() {
     }
 
+    public String getResource(String classname) {
+        throw new RuntimeException();
+    }
+
     public String toString() {
         return thisClass.getName() + ".class";
     }

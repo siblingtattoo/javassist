@@ -175,4 +175,8 @@ public class URLClassPath implements ClassPath {
         con.connect();
         return con;
     }
+
+    public String getResource(String classname) {
+        throw new RuntimeException();
+    }
 }

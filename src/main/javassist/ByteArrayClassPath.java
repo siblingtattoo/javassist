@@ -95,4 +95,8 @@ public class ByteArrayClassPath implements ClassPath {
 
         return null;
     }
+
+    public String getResource(String classname) {
+        throw new RuntimeException();
+    }
 }

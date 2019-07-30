@@ -21,25 +21,23 @@ import javassist.compiler.*;
 import javassist.compiler.ast.ASTList;
 
 /**
- * Explicit type cast.
+ * Expression for monitorexit.
  */
-public class Cast extends Expr {
-    /**
-     * Undocumented constructor.  Do not use; internal-use only.
-     */
-    protected Cast(int pos, int adjustedPos, CodeIterator i, CtClass declaring, MethodInfo m) {
+public class MonitorExit extends Expr {
+    protected MonitorExit(int pos, int adjustedPos, CodeIterator i, CtClass declaring,
+                          MethodInfo m) {
         super(pos, adjustedPos, i, declaring, m);
     }
 
     /**
-     * Returns the method or constructor containing the type cast
+     * Returns the method or constructor containing the field-access
      * expression represented by this object.
      */
     public CtBehavior where() { return super.where(); }
 
     /**
      * Returns the line number of the source line containing the
-     * type-cast expression.
+     * field access.
      *
      * @return -1       if this information is not available.
      */
@@ -48,24 +46,12 @@ public class Cast extends Expr {
     }
 
     /**
-     * Returns the source file containing the type-cast expression.
+     * Returns the source file containing the field access.
      *
      * @return null     if this information is not available.
      */
     public String getFileName() {
         return super.getFileName();
-    }
-
-    /**
-     * Returns the <code>CtClass</code> object representing
-     * the type specified by the cast.
-     */
-    public CtClass getType() throws NotFoundException {
-        ConstPool cp = getConstPool();
-        int pos = currentPos;
-        int index = iterator.u16bitAt(pos + 1);
-        String name = cp.getClassInfo(index);
-        return thisClass.getClassPool().getCtClass(name);
     }
 
     /**
@@ -79,10 +65,12 @@ public class Cast extends Expr {
     }
 
     /**
-     * Replaces the explicit cast operator with the bytecode derived from
+     * Replaces the method call with the bytecode derived from
      * the given source text.
      *
-     * <p>$0 is available but the value is <code>null</code>.
+     * <p>$0 is available even if the called method is static.
+     * If the field access is writing, $_ is available but the value
+     * of $_ is ignored.
      *
      * @param statement         a Java statement.
      */
@@ -90,76 +78,56 @@ public class Cast extends Expr {
         thisClass.getClassFile();   // to call checkModify().
         ConstPool constPool = getConstPool();
         int pos = currentPos;
-        int index = iterator.u16bitAt(pos + 1);
 
         Javac jc = new Javac(thisClass);
-        ClassPool cp = thisClass.getClassPool();
         CodeAttribute ca = iterator.get();
-
         try {
-            CtClass[] params
-                = new CtClass[] { cp.get(javaLangObject) };
-            CtClass retType = getType();
-
+            CtClass[] params = new CtClass[0];
             int paramVar = ca.getMaxLocals();
-            jc.recordParams(javaLangObject, params, true, paramVar,
-                            withinStatic());
-            int retVar = jc.recordReturnType(retType, true);
-            jc.recordProceed(new ProceedForCast(index, retType));
+            jc.recordParams(javaLangObject, params, true, paramVar, withinStatic());
 
-            /* Is $_ included in the source code?
-             */
-            checkResultValue(retType, statement);
+            jc.recordProceed(new Proceed(paramVar));
 
             Bytecode bytecode = jc.getBytecode();
-            storeStack(params, true, paramVar, bytecode);
+            storeStack(params, false, paramVar, bytecode);
             jc.recordLocalVariables(ca, pos);
 
-            bytecode.addConstZero(retType);
-            bytecode.addStore(retVar, retType);     // initialize $_
-
             jc.compileStmnt(statement);
-            bytecode.addLoad(retVar, retType);
 
-            replace0(pos, bytecode, 3);
+            replace0(pos, bytecode, 1); // TODO
         }
         catch (CompileError e) { throw new CannotCompileException(e); }
-        catch (NotFoundException e) { throw new CannotCompileException(e); }
         catch (BadBytecode e) {
-            throw new CannotCompileException("broken method");
+            throw new CannotCompileException(e);
         }
     }
 
-    /* <type> $proceed(Object obj)
+    /* <field type> $proceed()
      */
-    static class ProceedForCast implements ProceedHandler {
-        int index;
-        CtClass retType;
-
-        ProceedForCast(int i, CtClass t) {
-            index = i;
-            retType = t;
+    static class Proceed implements ProceedHandler {
+        int targetVar;
+        Proceed(int var) {
+            targetVar = var;
         }
 
         public void doit(JvstCodeGen gen, Bytecode bytecode, ASTList args)
             throws CompileError
         {
-            if (gen.getMethodArgsLength(args) != 1)
+            if (args != null && !gen.isParamListName(args))
                 throw new CompileError(Javac.proceedName
-                        + "() cannot take more than one parameter "
-                        + "for cast");
+                        + "() cannot take a parameter for monitor exit");
 
-            gen.atMethodArgs(args, new int[1], new int[1], new String[1]);
-            bytecode.addOpcode(Opcode.CHECKCAST);
-            bytecode.addIndex(index);
-            gen.setType(retType);
+            bytecode.addAload(targetVar);
+			bytecode.addOpcode(Opcode.MONITOREXIT);
+            gen.setType(CtClass.voidType);
+            // gen.addNullIfVoid();
         }
-        
+
         public void setReturnType(JvstTypeChecker c, ASTList args)
             throws CompileError
         {
-            c.atMethodArgs(args, new int[1], new int[1], new String[1]);
-            c.setType(retType);
+            c.setType(CtClass.voidType);
+            // c.addNullIfVoid();
         }
     }
 }
