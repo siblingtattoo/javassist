@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -26,6 +27,7 @@ import java.util.*;
 import java.lang.ref.WeakReference;
 
 import javassist.CannotCompileException;
+import javassist.NotFoundException;
 import javassist.bytecode.*;
 
 /*
@@ -44,7 +46,7 @@ import javassist.bytecode.*;
  *
  * <p>For example, if the following code is executed,
  * 
- * <ul><pre>
+ * <pre>
  * ProxyFactory f = new ProxyFactory();
  * f.setSuperclass(Foo.class);
  * f.setFilter(new MethodFilter() {
@@ -62,47 +64,49 @@ import javassist.bytecode.*;
  *     }
  * };
  * Foo foo = (Foo)c.newInstance();
- * ((ProxyObject)foo).setHandler(mi);
- * </pre></ul>
+ * ((Proxy)foo).setHandler(mi);
+ * </pre>
+ *
+ * <p>Here, <code>Method</code> is <code>java.lang.reflect.Method</code>.</p>
  *
  * <p>Then, the following method call will be forwarded to MethodHandler
  * <code>mi</code> and prints a message before executing the originally called method
  * <code>bar()</code> in <code>Foo</code>.
  *
- * <ul><pre>
+ * <pre>
  * foo.bar();
- * </pre></ul>
+ * </pre>
  *
  * <p>The last three lines of the code shown above can be replaced with a call to
  * the helper method <code>create</code>, which generates a proxy class, instantiates
  * it, and sets the method handler of the instance:
  *
- * <ul><pre>
+ * <pre>
  *     :
  * Foo foo = (Foo)f.create(new Class[0], new Object[0], mi);
- * </pre></ul>
+ * </pre>
  *
  * <p>To change the method handler during runtime,
  * execute the following code:
  *
- * <ul><pre>
+ * <pre>
  * MethodHandler mi = ... ;    // alternative handler
- * ((ProxyObject)foo).setHandler(mi);
- * </pre></ul>
+ * ((Proxy)foo).setHandler(mi);
+ * </pre>
  *
  * <p> If setHandler is never called for a proxy instance then it will
  * employ the default handler which proceeds by invoking the original method.
  * The behaviour of the default handler is identical to the following
  * handler:
  *
- * <ul><pre>
+ * <pre>
  * class EmptyHandler implements MethodHandler {
  *     public Object invoke(Object self, Method m,
  *                          Method proceed, Object[] args) throws Exception {
  *         return proceed.invoke(self, args);
  *     }
  * }
- * </pre></ul>
+ * </pre>
  *
  * <p>A proxy factory caches and reuses proxy classes by default. It is possible to reset
  * this default globally by setting static field {@link ProxyFactory#useCache} to false.
@@ -118,7 +122,7 @@ import javassist.bytecode.*;
  * with previous releases of javassist. Unfortunately,this legacy behaviour makes caching
  * and reuse of proxy classes impossible. The current programming model expects javassist
  * clients to set the handler of a proxy instance explicitly by calling method
- * {@link ProxyObject#setHandler(MethodHandler)} as shown in the sample code above. New
+ * {@link Proxy#setHandler(MethodHandler)} as shown in the sample code above. New
  * clients are strongly recommended to use this model rather than calling
  * {@link ProxyFactory#setHandler(MethodHandler)}.
  *
@@ -155,6 +159,7 @@ public class ProxyFactory {
     private MethodFilter methodFilter;
     private MethodHandler handler;  // retained for legacy usage
     private List signatureMethods;
+    private boolean hasGetHandler;
     private byte[] signature;
     private String classname;
     private String basename;
@@ -200,7 +205,7 @@ public class ProxyFactory {
 
     private static final String SERIAL_VERSION_UID_FIELD = "serialVersionUID";
     private static final String SERIAL_VERSION_UID_TYPE = "J";
-    private static final int SERIAL_VERSION_UID_VALUE = -1;
+    private static final long SERIAL_VERSION_UID_VALUE = -1L;
 
     /**
      * If true, a generated proxy class is cached and it will be reused
@@ -292,8 +297,8 @@ public class ProxyFactory {
      */
     public static boolean isProxyClass(Class cl)
     {
-        // all proxies implement ProxyObject. nothing else should. 
-        return (ProxyObject.class.isAssignableFrom(cl));
+        // all proxies implement Proxy or ProxyObject. nothing else should. 
+        return (Proxy.class.isAssignableFrom(cl));
     }
 
     /**
@@ -337,6 +342,7 @@ public class ProxyFactory {
         handler = null;
         signature = null;
         signatureMethods = null;
+        hasGetHandler = false;
         thisClass = null;
         writeDirectory = null;
         factoryUseCache = useCache;
@@ -542,6 +548,26 @@ public class ProxyFactory {
     }
 
     /**
+     * Obtains the method handler of the given proxy object.
+     * 
+     * @param p     a proxy object.
+     * @return the method handler.
+     * @since 3.16
+     */
+    public static MethodHandler getHandler(Proxy p) {
+        try {
+            Field f = p.getClass().getDeclaredField(HANDLER);
+            f.setAccessible(true);
+            Object value = f.get(p);
+            f.setAccessible(false);
+            return (MethodHandler)value;
+        }
+        catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
      * A provider of class loaders.
      *
      * @see #classLoaderProvider
@@ -566,13 +592,13 @@ public class ProxyFactory {
      * implementation.
      *
      * <p>Example:
-     * <ul><pre>
+     * <pre>
      * ProxyFactory.classLoaderProvider = new ProxyFactory.ClassLoaderProvider() {
      *     public ClassLoader get(ProxyFactory pf) {
      *         return Thread.currentThread().getContextClassLoader();
      *     }
      * };
-     * </pre></ul>
+     * </pre>
      *
      * @since 3.4
      */
@@ -632,7 +658,7 @@ public class ProxyFactory {
                InstantiationException, IllegalAccessException, InvocationTargetException
     {
         Object obj = create(paramTypes, args);
-        ((ProxyObject)obj).setHandler(mh);
+        ((Proxy)obj).setHandler(mh);
         return obj;
     }
 
@@ -657,7 +683,7 @@ public class ProxyFactory {
      * specified.
      * @deprecated since 3.12
      * use of this method is incompatible  with proxy class caching.
-     * instead clients should call method {@link ProxyObject#setHandler(MethodHandler)} to set the handler
+     * instead clients should call method {@link Proxy#setHandler(MethodHandler)} to set the handler
      * for each newly created  proxy instance.
      * calling this method will automatically disable caching of classes created by the proxy factory.
      */
@@ -674,16 +700,44 @@ public class ProxyFactory {
         setField(DEFAULT_INTERCEPTOR, handler);
     }
 
-    private static int counter = 0;
+    /**
+     * A unique class name generator.
+     */
+    public static interface UniqueName {
+        /**
+         * Returns a unique class name.
+         *
+         * @param classname     the super class name of the proxy class.
+         */
+        String get(String classname);
+    }
 
-    private static synchronized String makeProxyName(String classname) {
-        return classname + "_$$_javassist_" + counter++;
+    /**
+     * A unique class name generator.
+     * Replacing this generator changes the algorithm to generate a
+     * unique name. The <code>get</code> method does not have to be
+     * a <code>synchronized</code> method since the access to this field
+     * is mutually exclusive and thus thread safe.
+     */
+    public static UniqueName nameGenerator = new UniqueName() {
+        private final String sep = "_$$_jvst" + Integer.toHexString(this.hashCode() & 0xfff) + "_";
+        private int counter = 0;
+
+        public String get(String classname) {
+            return classname + sep + Integer.toHexString(counter++);
+        }
+    };
+
+    private static String makeProxyName(String classname) {
+        synchronized (nameGenerator) {
+            return nameGenerator.get(classname);
+        }
     }
 
     private ClassFile make() throws CannotCompileException {
         ClassFile cf = new ClassFile(false, classname, superName);
         cf.setAccessFlags(AccessFlag.PUBLIC);
-        setInterfaces(cf, interfaces);
+        setInterfaces(cf, interfaces, hasGetHandler ? Proxy.class : ProxyObject.class);
         ConstPool pool = cf.getConstPool();
 
         // legacy: we only add the static field for the default interceptor if caching is disabled
@@ -711,10 +765,13 @@ public class ProxyFactory {
         // HashMap allMethods = getMethods(superClass, interfaces);
         // int size = allMethods.size();
         makeConstructors(classname, cf, pool, classname);
-        int s = overrideMethods(cf, pool, classname);
-        addMethodsHolder(cf, pool, classname, s);
+
+        ArrayList forwarders = new ArrayList();
+        int s = overrideMethods(cf, pool, classname, forwarders);
+        addClassInitializer(cf, pool, classname, s, forwarders);
         addSetter(classname, cf, pool);
-        addGetter(classname, cf, pool);
+        if (!hasGetHandler)
+            addGetter(classname, cf, pool);
 
         if (factoryWriteReplace) {
             try {
@@ -729,8 +786,7 @@ public class ProxyFactory {
         return cf;
     }
 
-    private void checkClassAndSuperName()
-    {
+    private void checkClassAndSuperName() {
         if (interfaces == null)
             interfaces = new Class[0];
 
@@ -751,8 +807,7 @@ public class ProxyFactory {
             basename = "org.javassist.tmp." + basename;
     }
 
-    private void allocateClassName()
-    {
+    private void allocateClassName() {
         classname = makeProxyName(basename);
     }
 
@@ -767,10 +822,10 @@ public class ProxyFactory {
         }
     };
 
-    private void makeSortedMethodList()
-    {
+    private void makeSortedMethodList() {
         checkClassAndSuperName();
 
+        hasGetHandler = false;      // getMethods() may set this to true.
         HashMap allMethods = getMethods(superClass, interfaces);
         signatureMethods = new ArrayList(allMethods.entrySet());
         Collections.sort(signatureMethods, sorter);
@@ -808,8 +863,7 @@ public class ProxyFactory {
         this.signature =  signature;
     }
 
-    private boolean testBit(byte[] signature, int idx)
-    {
+    private boolean testBit(byte[] signature, int idx) {
         int byteIdx = idx >> 3;
         if (byteIdx > signature.length) {
             return false;
@@ -821,8 +875,7 @@ public class ProxyFactory {
         }
     }
 
-    private void setBit(byte[] signature, int idx)
-    {
+    private void setBit(byte[] signature, int idx) {
         int byteIdx = idx >> 3;
         if (byteIdx < signature.length) {
             int bitIdx = idx & 0x7;
@@ -832,8 +885,8 @@ public class ProxyFactory {
         }
     }
 
-    private static void setInterfaces(ClassFile cf, Class[] interfaces) {
-        String setterIntf = ProxyObject.class.getName();
+    private static void setInterfaces(ClassFile cf, Class[] interfaces, Class proxyClass) {
+        String setterIntf = proxyClass.getName();
         String[] list;
         if (interfaces == null || interfaces.length == 0)
             list = new String[] { setterIntf };
@@ -848,8 +901,8 @@ public class ProxyFactory {
         cf.setInterfaces(list);
     }
 
-    private static void addMethodsHolder(ClassFile cf, ConstPool cp,
-                                         String classname, int size)
+    private static void addClassInitializer(ClassFile cf, ConstPool cp,
+                                    String classname, int size, ArrayList forwarders)
         throws CannotCompileException
     {
         FieldInfo finfo = new FieldInfo(cp, HOLDER, HOLDER_TYPE);
@@ -857,16 +910,59 @@ public class ProxyFactory {
         cf.addField(finfo);
         MethodInfo minfo = new MethodInfo(cp, "<clinit>", "()V");
         minfo.setAccessFlags(AccessFlag.STATIC);
-        Bytecode code = new Bytecode(cp, 0, 0);
+        setThrows(minfo, cp, new Class[] { ClassNotFoundException.class });
+
+        Bytecode code = new Bytecode(cp, 0, 2);
         code.addIconst(size * 2);
         code.addAnewarray("java.lang.reflect.Method");
+        final int varArray = 0;
+        code.addAstore(varArray);
+
+        // forName() must be called here.  Otherwise, the class might be
+        // invisible.
+        code.addLdc(classname);
+        code.addInvokestatic("java.lang.Class",
+                "forName", "(Ljava/lang/String;)Ljava/lang/Class;");
+        final int varClass = 1;
+        code.addAstore(varClass);
+
+        Iterator it = forwarders.iterator();
+        while (it.hasNext()) {
+            Find2MethodsArgs args = (Find2MethodsArgs)it.next();
+            callFind2Methods(code, args.methodName, args.delegatorName,
+                             args.origIndex, args.descriptor, varClass, varArray);
+        }
+
+        code.addAload(varArray);
         code.addPutstatic(classname, HOLDER, HOLDER_TYPE);
-        // also need to set serial version uid
-        code.addLconst(-1L);
+
+        code.addLconst(SERIAL_VERSION_UID_VALUE);
         code.addPutstatic(classname, SERIAL_VERSION_UID_FIELD, SERIAL_VERSION_UID_TYPE);
         code.addOpcode(Bytecode.RETURN);
         minfo.setCodeAttribute(code.toCodeAttribute());
         cf.addMethod(minfo);
+    }
+
+    /**
+     * @param thisMethod        might be null.
+     */
+    private static void callFind2Methods(Bytecode code, String superMethod, String thisMethod,
+                                         int index, String desc, int classVar, int arrayVar) {
+        String findClass = RuntimeSupport.class.getName();
+        String findDesc
+            = "(Ljava/lang/Class;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;[Ljava/lang/reflect/Method;)V";
+
+        code.addAload(classVar);
+        code.addLdc(superMethod);
+        if (thisMethod == null)
+            code.addOpcode(Opcode.ACONST_NULL);
+        else
+            code.addLdc(thisMethod);
+
+        code.addIconst(index);
+        code.addLdc(desc);
+        code.addAload(arrayVar);
+        code.addInvokestatic(findClass, "find2Methods", findDesc);
     }
 
     private static void addSetter(String classname, ClassFile cf, ConstPool cp)
@@ -898,7 +994,7 @@ public class ProxyFactory {
         cf.addMethod(minfo);
     }
 
-    private int overrideMethods(ClassFile cf, ConstPool cp, String className)
+    private int overrideMethods(ClassFile cf, ConstPool cp, String className, ArrayList forwarders)
         throws CannotCompileException
     {
         String prefix = makeUniqueName("_d", signatureMethods);
@@ -908,19 +1004,24 @@ public class ProxyFactory {
             Map.Entry e = (Map.Entry)it.next();
             String key = (String)e.getKey();
             Method meth = (Method)e.getValue();
-            int mod = meth.getModifiers();
-            if (testBit(signature, index)) {
-                override(className, meth, prefix, index,
-                        keyToDesc(key), cf, cp);
-            }
+            if (ClassFile.MAJOR_VERSION < ClassFile.JAVA_5 || !isBridge(meth))
+            	if (testBit(signature, index)) {
+            		override(className, meth, prefix, index,
+            				 keyToDesc(key, meth), cf, cp, forwarders);
+            	}
+
             index++;
         }
 
         return index;
     }
 
+    private static boolean isBridge(Method m) {
+    	return m.isBridge();
+    }
+
     private void override(String thisClassname, Method meth, String prefix,
-                          int index, String desc, ClassFile cf, ConstPool cp)
+                          int index, String desc, ClassFile cf, ConstPool cp, ArrayList forwarders)
         throws CannotCompileException
     {
         Class declClass = meth.getDeclaringClass();
@@ -937,7 +1038,7 @@ public class ProxyFactory {
 
         MethodInfo forwarder
             = makeForwarder(thisClassname, meth, desc, cp, declClass,
-                            delegatorName, index);
+                            delegatorName, index, forwarders);
         cf.addMethod(forwarder);
     }
 
@@ -1010,29 +1111,45 @@ public class ProxyFactory {
             return name.substring(0, i);
     }
 
-    private static HashMap getMethods(Class superClass, Class[] interfaceTypes) {
+    /* getMethods() may set hasGetHandler to true.
+     */
+    private HashMap getMethods(Class superClass, Class[] interfaceTypes) {
         HashMap hash = new HashMap();
+        HashSet set = new HashSet();
         for (int i = 0; i < interfaceTypes.length; i++)
-            getMethods(hash, interfaceTypes[i]);
+            getMethods(hash, interfaceTypes[i], set);
 
-        getMethods(hash, superClass);
+        getMethods(hash, superClass, set);
         return hash;
     }
 
-    private static void getMethods(HashMap hash, Class clazz) {
+    private void getMethods(HashMap hash, Class clazz, Set visitedClasses) {
+        // This both speeds up scanning by avoiding duplicate interfaces and is needed to
+        // ensure that superinterfaces are always scanned before subinterfaces.
+        if (!visitedClasses.add(clazz))
+            return;
+
         Class[] ifs = clazz.getInterfaces();
         for (int i = 0; i < ifs.length; i++)
-            getMethods(hash, ifs[i]);
+            getMethods(hash, ifs[i], visitedClasses);
 
         Class parent = clazz.getSuperclass();
         if (parent != null)
-            getMethods(hash, parent);
+            getMethods(hash, parent, visitedClasses);
 
+        /* Java 5 or later allows covariant return types.
+         * It also allows contra-variant parameter types
+         * if a super class is a generics with concrete type arguments
+         * such as Foo<String>.  So the method-overriding rule is complex.
+         */
         Method[] methods = SecurityActions.getDeclaredMethods(clazz);
         for (int i = 0; i < methods.length; i++)
             if (!Modifier.isPrivate(methods[i].getModifiers())) {
                 Method m = methods[i];
-                String key = m.getName() + ':' + RuntimeSupport.makeDescriptor(m);
+                String key = m.getName() + ':' + RuntimeSupport.makeDescriptor(m);	// see keyToDesc().
+                if (key.startsWith(HANDLER_GETTER_KEY))
+                    hasGetHandler = true;
+
                 // JIRA JASSIST-85
                 // put the method to the cache, retrieve previous definition (if any) 
                 Method oldMethod = (Method)hash.put(key, methods[i]); 
@@ -1047,7 +1164,10 @@ public class ProxyFactory {
             }
     }
 
-    private static String keyToDesc(String key) {
+    private static final String HANDLER_GETTER_KEY
+    	= HANDLER_GETTER + ":()";
+
+    private static String keyToDesc(String key, Method m) {
         return key.substring(key.indexOf(':') + 1);
     }
 
@@ -1117,7 +1237,8 @@ public class ProxyFactory {
      */
     private static MethodInfo makeForwarder(String thisClassName,
                     Method meth, String desc, ConstPool cp,
-                    Class declClass, String delegatorName, int index) {
+                    Class declClass, String delegatorName, int index,
+                    ArrayList forwarders) {
         MethodInfo forwarder = new MethodInfo(cp, meth.getName(), desc);
         forwarder.setAccessFlags(Modifier.FINAL
                     | (meth.getModifiers() & ~(Modifier.ABSTRACT
@@ -1127,13 +1248,14 @@ public class ProxyFactory {
         int args = Descriptor.paramSize(desc);
         Bytecode code = new Bytecode(cp, 0, args + 2);
         /*
-         * if (methods[index * 2] == null) {
+         * static {
          *   methods[index * 2]
          *     = RuntimeSupport.findSuperMethod(this, <overridden name>, <desc>);
          *   methods[index * 2 + 1]
          *     = RuntimeSupport.findMethod(this, <delegator name>, <desc>);
          *     or = null // the original method is abstract.
          * }
+         *     :
          * return ($r)handler.invoke(this, methods[index * 2],
          *                methods[index * 2 + 1], $args);
          */
@@ -1143,7 +1265,7 @@ public class ProxyFactory {
         code.addGetstatic(thisClassName, HOLDER, HOLDER_TYPE);
         code.addAstore(arrayVar);
 
-        callFind2Methods(code, meth.getName(), delegatorName, origIndex, desc, arrayVar);
+        forwarders.add(new Find2MethodsArgs(meth.getName(), delegatorName, desc, origIndex));
 
         code.addAload(0);
         code.addGetfield(thisClassName, HANDLER, HANDLER_TYPE);
@@ -1168,6 +1290,18 @@ public class ProxyFactory {
         CodeAttribute ca = code.toCodeAttribute();
         forwarder.setCodeAttribute(ca);
         return forwarder;
+    }
+
+    static class Find2MethodsArgs {
+        String methodName, delegatorName, descriptor;
+        int origIndex;
+
+        Find2MethodsArgs(String mname, String dname, String desc, int index) {
+            methodName = mname;
+            delegatorName = dname;
+            descriptor = desc;
+            origIndex = index;
+        }
     }
 
     private static void setThrows(MethodInfo minfo, ConstPool cp, Method orig) {
@@ -1274,28 +1408,6 @@ public class ProxyFactory {
         code.addInvokespecial(wrapper, "<init>",
                               FactoryHelper.wrapperDesc[index]);
         return regno + FactoryHelper.dataSize[index];
-    }
-
-    /**
-     * @param thisMethod        might be null.
-     */
-    private static void callFind2Methods(Bytecode code, String superMethod, String thisMethod,
-                                         int index, String desc, int arrayVar) {
-        String findClass = RuntimeSupport.class.getName();
-        String findDesc
-            = "(Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;[Ljava/lang/reflect/Method;)V";
-
-        code.addAload(0);
-        code.addLdc(superMethod);
-        if (thisMethod == null)
-            code.addOpcode(Opcode.ACONST_NULL);
-        else
-            code.addLdc(thisMethod);
-
-        code.addIconst(index);
-        code.addLdc(desc);
-        code.addAload(arrayVar);
-        code.addInvokestatic(findClass, "find2Methods", findDesc);
     }
 
     private static void addUnwrapper(Bytecode code, Class type) {

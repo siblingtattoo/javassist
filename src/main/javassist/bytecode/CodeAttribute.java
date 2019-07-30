@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -31,6 +32,7 @@ import java.util.Map;
  * use <code>CodeIterator</code>.
  *
  * @see CodeIterator
+ * @see #iterator()
  */
 public class CodeAttribute extends AttributeInfo implements Opcode {
     /**
@@ -198,6 +200,10 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
 
     void renameClass(Map classnames) {
         AttributeInfo.renameClass(attributes, classnames);
+    }
+
+    void getRefClasses(Map classnames) {
+        AttributeInfo.getRefClasses(attributes, classnames);
     }
 
     /**
@@ -399,6 +405,12 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
                 newcode[i + 3] = code[i + 3];
                 newcode[i + 4] = code[i + 4];
                 break;
+            case INVOKEDYNAMIC :
+                copyConstPoolInfo(i + 1, code, srcCp, newcode, destCp,
+                        classnameMap);
+                newcode[i + 3] = 0;
+                newcode[i + 4] = 0;
+                break;
             case MULTIANEWARRAY :
                 copyConstPoolInfo(i + 1, code, srcCp, newcode, destCp,
                                   classnameMap);
@@ -457,6 +469,7 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
      * Changes the index numbers of the local variables
      * to append a new parameter.
      * This method does not update <code>LocalVariableAttribute</code>,
+     * <code>LocalVariableTypeAttribute</code>,
      * <code>StackMapTable</code>, or <code>StackMap</code>.
      * These attributes must be explicitly updated.
      *
@@ -464,6 +477,7 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
      * @param size         the type size of the new parameter (1 or 2).
      *
      * @see LocalVariableAttribute#shiftIndex(int, int)
+     * @see LocalVariableTypeAttribute#shiftIndex(int, int)
      * @see StackMapTable#insertLocal(int, int, int)
      * @see StackMap#insertLocal(int, int, int)
      */

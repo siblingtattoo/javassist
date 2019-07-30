@@ -5,7 +5,8 @@
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -16,8 +17,11 @@
 package javassist.bytecode.annotation;
 
 import javassist.ClassPool;
+import javassist.bytecode.BadBytecode;
 import javassist.bytecode.ConstPool;
 import javassist.bytecode.Descriptor;
+import javassist.bytecode.SignatureAttribute;
+
 import java.io.IOException;
 import java.lang.reflect.Method;
 
@@ -96,7 +100,11 @@ public class ClassMemberValue extends MemberValue {
      */
     public String getValue() {
         String v = cp.getUtf8Info(valueIndex);
-        return Descriptor.toClassName(v);
+        try {
+            return SignatureAttribute.toTypeSignature(v).jvmTypeName();
+        } catch (BadBytecode e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -113,7 +121,7 @@ public class ClassMemberValue extends MemberValue {
      * Obtains the string representation of this object.
      */
     public String toString() {
-        return "<" + getValue() + " class>";
+        return getValue().replace('$', '.') + ".class";
     }
 
     /**

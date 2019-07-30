@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -143,9 +144,9 @@ public class CtField extends CtMember {
      * Compiles the given source code and creates a field.
      * Examples of the source code are:
      *
-     * <ul><pre>
+     * <pre>
      * "public String name;"
-     * "public int k = 3;"</pre></ul>
+     * "public int k = 3;"</pre>
      *
      * <p>Note that the source code ends with <code>';'</code>
      * (semicolon).
@@ -326,17 +327,41 @@ public class CtField extends CtMember {
      *
      * <p>Note that the returned string is not the type signature
      * contained in the <code>SignatureAttirbute</code>.  It is
-     * a descriptor.  To obtain a type signature, call the following
-     * methods:
-     * 
-     * <ul><pre>getFieldInfo().getAttribute(SignatureAttribute.tag)
-     * </pre></ul>
+     * a descriptor.
      *
      * @see javassist.bytecode.Descriptor
-     * @see javassist.bytecode.SignatureAttribute
+     * @see #getGenericSignature()
      */
     public String getSignature() {
         return fieldInfo.getDescriptor();
+    }
+
+    /**
+     * Returns the generic signature of the field.
+     * It represents a type including type variables.
+     *
+     * @see SignatureAttribute#toFieldSignature(String)
+     * @since 3.17
+     */
+    public String getGenericSignature() {
+        SignatureAttribute sa
+            = (SignatureAttribute)fieldInfo.getAttribute(SignatureAttribute.tag);
+        return sa == null ? null : sa.getSignature();
+    }
+
+    /**
+     * Set the generic signature of the field.
+     * It represents a type including type variables.
+     * See {@link javassist.CtClass#setGenericSignature(String)}
+     * for a code sample.
+     *
+     * @param sig       a new generic signature.
+     * @see javassist.bytecode.SignatureAttribute.ObjectType#encode()
+     * @since 3.17
+     */
+    public void setGenericSignature(String sig) {
+        declaringClass.checkModify();
+        fieldInfo.addAttribute(new SignatureAttribute(fieldInfo.getConstPool(), sig));
     }
 
     /**
@@ -526,8 +551,7 @@ public class CtField extends CtMember {
          * value of the field.  The constructor of the created object receives
          * the parameter:
          *
-         * <ul><code>Object obj</code> - the object including the field.<br>
-         * </ul>
+         * <p><code>Object obj</code> - the object including the field.
          *
          * <p>If the initialized field is static, then the constructor does
          * not receive any parameters.
@@ -549,10 +573,9 @@ public class CtField extends CtMember {
          * value of the field.  The constructor of the created object receives
          * the parameters:
          *
-         * <ul><code>Object obj</code> - the object including the field.<br>
+         * <p><code>Object obj</code> - the object including the field.<br>
          *     <code>String[] strs</code> - the character strings specified
          *                              by <code>stringParams</code><br>
-         * </ul>
          *
          * <p>If the initialized field is static, then the constructor
          * receives only <code>strs</code>.
@@ -577,11 +600,10 @@ public class CtField extends CtMember {
          * value of the field.  The constructor of the created object receives
          * the parameters:
          *
-         * <ul><code>Object obj</code> - the object including the field.<br>
+         * <p><code>Object obj</code> - the object including the field.<br>
          *     <code>Object[] args</code> - the parameters passed to the
          *                      constructor of the object including the
          *                      filed.
-         * </ul>
          *
          * <p>If the initialized field is static, then the constructor does
          * not receive any parameters.
@@ -606,13 +628,12 @@ public class CtField extends CtMember {
          * value of the field.  The constructor of the created object receives
          * the parameters:
          *
-         * <ul><code>Object obj</code> - the object including the field.<br>
+         * <p><code>Object obj</code> - the object including the field.<br>
          *     <code>String[] strs</code> - the character strings specified
          *                              by <code>stringParams</code><br>
          *     <code>Object[] args</code> - the parameters passed to the
          *                      constructor of the object including the
          *                      filed.
-         * </ul>
          *
          * <p>If the initialized field is static, then the constructor receives
          * only <code>strs</code>.
@@ -637,8 +658,7 @@ public class CtField extends CtMember {
          * value as the initial value of the field.
          * The called method receives the parameters:
          *
-         * <ul><code>Object obj</code> - the object including the field.<br>
-         * </ul>
+         * <p><code>Object obj</code> - the object including the field.
          *
          * <p>If the initialized field is static, then the method does
          * not receive any parameters.
@@ -667,10 +687,9 @@ public class CtField extends CtMember {
          * value as the initial value of the field.  The called method
          * receives the parameters:
          *
-         * <ul><code>Object obj</code> - the object including the field.<br>
+         * <p><code>Object obj</code> - the object including the field.<br>
          *     <code>String[] strs</code> - the character strings specified
          *                              by <code>stringParams</code><br>
-         * </ul>
          *
          * <p>If the initialized field is static, then the method
          * receive only <code>strs</code>.
@@ -702,11 +721,10 @@ public class CtField extends CtMember {
          * value as the initial value of the field.  The called method
          * receives the parameters:
          *
-         * <ul><code>Object obj</code> - the object including the field.<br>
+         * <p><code>Object obj</code> - the object including the field.<br>
          *     <code>Object[] args</code> - the parameters passed to the
          *                      constructor of the object including the
          *                      filed.
-         * </ul>
          *
          * <p>If the initialized field is static, then the method does
          * not receive any parameters.
@@ -735,13 +753,12 @@ public class CtField extends CtMember {
          * value as the initial value of the field.  The called method
          * receives the parameters:
          *
-         * <ul><code>Object obj</code> - the object including the field.<br>
+         * <p><code>Object obj</code> - the object including the field.<br>
          *     <code>String[] strs</code> - the character strings specified
          *                              by <code>stringParams</code><br>
          *     <code>Object[] args</code> - the parameters passed to the
          *                      constructor of the object including the
          *                      filed.
-         * </ul>
          *
          * <p>If the initialized field is static, then the method
          * receive only <code>strs</code>.

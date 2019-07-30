@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -32,8 +33,8 @@ import java.io.ObjectOutputStream;
  * <p>To obtain a class metaobject, calls <code>_getClass()</code>
  * on a reflective object.  For example,
  *
- * <ul><pre>ClassMetaobject cm = ((Metalevel)reflectiveObject)._getClass();
- * </pre></ul>
+ * <pre>ClassMetaobject cm = ((Metalevel)reflectiveObject)._getClass();
+ * </pre>
  *
  * @see javassist.tools.reflect.Metaobject
  * @see javassist.tools.reflect.Metalevel
@@ -55,7 +56,7 @@ public class ClassMetaobject implements Serializable {
      * Specifies how a <code>java.lang.Class</code> object is loaded.
      *
      * <p>If true, it is loaded by:
-     * <ul><pre>Thread.currentThread().getContextClassLoader().loadClass()</pre></ul>
+     * <pre>Thread.currentThread().getContextClassLoader().loadClass()</pre>
      * <p>If false, it is loaded by <code>Class.forName()</code>.
      * The default value is false.
      */
@@ -336,7 +337,7 @@ public class ClassMetaobject implements Serializable {
      * original name.
      *
      * <p>This method is useful, in conjuction with
-     * <link>ClassMetaobject#getMethod()</link>, to obtain a quick reference
+     * {@link ClassMetaobject#getMethod(int)}, to obtain a quick reference
      * to the original method in the reflected class (i.e. not the proxy
      * method), using the original name of the method.
      *

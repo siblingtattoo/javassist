@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -46,6 +47,7 @@ import javassist.bytecode.FieldInfo;
 import javassist.bytecode.InnerClassesAttribute;
 import javassist.bytecode.MethodInfo;
 import javassist.bytecode.ParameterAnnotationsAttribute;
+import javassist.bytecode.SignatureAttribute;
 import javassist.bytecode.annotation.Annotation;
 import javassist.compiler.AccessorMaker;
 import javassist.compiler.CompileError;
@@ -92,6 +94,12 @@ class CtClassType extends CtClass {
     CtClassType(InputStream ins, ClassPool cp) throws IOException {
         this((String)null, cp);
         classfile = new ClassFile(new DataInputStream(ins));
+        qualifiedName = classfile.getName();
+    }
+
+    CtClassType(ClassFile cf, ClassPool cp) {
+        this((String)null, cp);
+        classfile = cf;
         qualifiedName = classfile.getName();
     }
 
@@ -335,6 +343,18 @@ class CtClassType extends CtClass {
         classPool.classNameChanged(oldname, this);
     }
 
+    public String getGenericSignature() {
+        SignatureAttribute sa
+            = (SignatureAttribute)getClassFile2().getAttribute(SignatureAttribute.tag);
+        return sa == null ? null : sa.getSignature();
+    }
+
+    public void setGenericSignature(String sig) {
+        ClassFile cf = getClassFile();
+        SignatureAttribute sa = new SignatureAttribute(cf.getConstPool(), sig);
+        cf.addAttribute(sa);
+    }
+
     public void replaceClassName(ClassMap classnames)
         throws RuntimeException
     {
@@ -401,20 +421,17 @@ class CtClassType extends CtClass {
         if (ica == null)
             return new CtClass[0];
 
-        String thisName = cf.getName();
+        String thisName = cf.getName() + "$";
         int n = ica.tableLength();
         ArrayList list = new ArrayList(n);
         for (int i = 0; i < n; i++) {
-            String outer = ica.outerClass(i);
-            /*
-             * If a nested class is local or anonymous,
-             * the outer_class_info_index is 0.
-             */
-            if (outer == null || outer.equals(thisName)) {
-                String inner = ica.innerClass(i);
-                if (inner != null)
-                    list.add(classPool.get(inner));
-            }
+            String name = ica.innerClass(i);
+            if (name != null)
+                if (name.startsWith(thisName)) {
+                    // if it is an immediate nested class
+                    if (name.lastIndexOf('$') < thisName.length())
+                        list.add(classPool.get(name));
+                }
         }
 
         return (CtClass[])list.toArray(new CtClass[list.size()]);
@@ -665,7 +682,20 @@ class CtClassType extends CtClass {
         }
         catch (ClassNotFoundException e) {
             ClassLoader cl2 = cp.getClass().getClassLoader();
-            return anno.toAnnotationType(cl2, cp);
+            try {
+                return anno.toAnnotationType(cl2, cp);
+            }
+            catch (ClassNotFoundException e2){
+                try {
+                    Class<?> clazz = cp.get(anno.getTypeName()).toClass();
+                    return javassist.bytecode.annotation.AnnotationImpl.make(
+                                            clazz.getClassLoader(),
+                                            clazz, cp, anno);
+                }
+                catch (Throwable e3) {
+                    throw new ClassNotFoundException(anno.getTypeName());
+                }
+            }
         }
     }
 
@@ -761,17 +791,23 @@ class CtClassType extends CtClass {
         return null;
     }
 
-    public CtMethod getEnclosingMethod() throws NotFoundException {
+    public CtBehavior getEnclosingBehavior() throws NotFoundException {
         ClassFile cf = getClassFile2();
         EnclosingMethodAttribute ema
                 = (EnclosingMethodAttribute)cf.getAttribute(
                                                 EnclosingMethodAttribute.tag);
-        if (ema != null) {
+        if (ema == null)
+            return null;
+        else {
             CtClass enc = classPool.get(ema.className());
-            return enc.getMethod(ema.methodName(), ema.methodDescriptor());
+            String name = ema.methodName();
+            if (MethodInfo.nameInit.equals(name))
+                return enc.getConstructor(ema.methodDescriptor());
+            else if(MethodInfo.nameClinit.equals(name))
+                return enc.getClassInitializer();
+            else
+                return enc.getMethod(name, ema.methodDescriptor());
         }
-
-        return null;
     }
 
     public CtClass makeNestedClass(String name, boolean isStatic) {
@@ -1186,6 +1222,20 @@ class CtClassType extends CtClass {
         return cms;
     }
 
+    public CtMethod[] getDeclaredMethods(String name) throws NotFoundException {
+        CtMember.Cache memCache = getMembers();
+        CtMember mth = memCache.methodHead();
+        CtMember mthTail = memCache.lastMethod();
+        ArrayList<CtMethod> methods = new ArrayList<CtMethod>();
+        while (mth != mthTail) {
+            mth = mth.next();
+            if (mth.getName().equals(name))
+                methods.add((CtMethod)mth);
+        }
+
+        return methods.toArray(new CtMethod[methods.size()]);
+    }
+
     public CtMethod getDeclaredMethod(String name) throws NotFoundException {
         CtMember.Cache memCache = getMembers();
         CtMember mth = memCache.methodHead();
@@ -1416,6 +1466,9 @@ class CtClassType extends CtClass {
 
                 modifyClassConstructor(cf);
                 modifyConstructors(cf);
+                if (debugDump != null)
+                    dumpClassFile(cf);
+
                 cf.write(out);
                 out.flush();
                 fieldInitializers = null;
@@ -1439,6 +1492,16 @@ class CtClassType extends CtClass {
         }
         catch (IOException e) {
             throw new CannotCompileException(e);
+        }
+    }
+
+    private void dumpClassFile(ClassFile cf) throws IOException {
+        DataOutputStream dump = makeFileOutput(debugDump);
+        try {
+            cf.write(dump);
+        }
+        finally {
+            dump.close();
         }
     }
 

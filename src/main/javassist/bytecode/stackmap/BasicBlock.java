@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -22,15 +23,19 @@ import java.util.ArrayList;
 /**
  * A basic block is a sequence of bytecode that does not contain jump/branch
  * instructions except at the last bytecode.
- * Since Java6 or later does not allow JSR, this class deals with JSR as a
- * non-branch instruction.
+ * Since Java7 or later does not allow JSR, this class throws an exception when
+ * it finds JSR.
  */
 public class BasicBlock {
-    public int position, length;
-    public int incoming;        // the number of incoming branches.
-    public BasicBlock[] exit;   // null if the block is a leaf.
-    public boolean stop;        // true if the block ends with an unconditional jump. 
-    public Catch toCatch;
+    static class JsrBytecode extends BadBytecode {
+        JsrBytecode() { super("JSR"); }
+    }
+
+    protected int position, length;
+    protected int incoming;        // the number of incoming branches.
+    protected BasicBlock[] exit;   // null if the block is a leaf.
+    protected boolean stop;        // true if the block ends with an unconditional jump. 
+    protected Catch toCatch;
 
     protected BasicBlock(int pos) {
         position = pos;
@@ -51,9 +56,9 @@ public class BasicBlock {
     }
 
     public static class Catch {
-        Catch next;
-        BasicBlock body;
-        int typeIndex;
+        public Catch next;
+        public BasicBlock body;
+        public int typeIndex;
         Catch(BasicBlock b, int i, Catch c) {
             body = b;
             typeIndex = i;
@@ -78,7 +83,7 @@ public class BasicBlock {
             .append(", exit{");
         if (exit != null) {
             for (int i = 0; i < exit.length; i++)
-                sbuf.append(exit[i].position).append(", ");
+                sbuf.append(exit[i].position).append(",");
         }
 
         sbuf.append("}, {");
@@ -92,11 +97,15 @@ public class BasicBlock {
         sbuf.append("}");
     }
 
+    /**
+     * A Mark indicates the position of a branch instruction
+     * or a branch target.
+     */
     static class Mark implements Comparable {
         int position;
         BasicBlock block;
         BasicBlock[] jump;
-        boolean alwaysJmp;     // true if a unconditional branch.
+        boolean alwaysJmp;     // true if an unconditional branch.
         int size;       // 0 unless the mark indicates RETURN etc. 
         Catch catcher;
 
@@ -273,7 +282,7 @@ public class BasicBlock {
                 else if (op == Opcode.JSR_W)
                     makeJsr(marks, index, index + ci.s32bitAt(index + 1), 5);
                 else if (op == Opcode.WIDE && ci.byteAt(index + 1) == Opcode.RET)
-                    makeMark(marks, index, null, 1, true);
+                    makeMark(marks, index, null, 4, true);
             }
 
             if (et != null) {
@@ -293,16 +302,18 @@ public class BasicBlock {
             makeMark(marks, pos, jumps, size, true);
         }
 
-        /**
-         * We ignore JSR since Java 6 or later does not allow it.
-         */
-        protected void makeJsr(HashMap marks, int pos, int target, int size) {
         /*
+         * We could ignore JSR since Java 7 or later does not allow it.
+         * See The JVM Spec. Sec. 4.10.2.5.
+         */
+        protected void makeJsr(HashMap marks, int pos, int target, int size) throws BadBytecode {
+            /*
             Mark to = makeMark(marks, target);
             Mark next = makeMark(marks, pos + size);
             BasicBlock[] jumps = makeArray(to.block, next.block);
             makeMark(marks, pos, jumps, size, false);
-        */
+            */
+            throw new JsrBytecode();
         }
 
         private BasicBlock[] makeBlocks(HashMap markTable) {
@@ -342,12 +353,14 @@ public class BasicBlock {
                     }
                     else {
                         // the previous mark already has exits.
-                        int prevPos = prev.position;
-                        if (prevPos + prev.length < m.position) {
-                            prev = makeBlock(prevPos + prev.length);
-                            prev.length = m.position - prevPos;
+                        if (prev.position + prev.length < m.position) {
+                            // dead code is found.
+                            prev = makeBlock(prev.position + prev.length);
+                            blocks.add(prev);
+                            prev.length = m.position - prev.position;
                             // the incoming flow from dead code is not counted
                             // bb.incoming++;
+                            prev.stop = true;   // because the incoming flow is not counted.
                             prev.exit = makeArray(bb);
                         }
                     }

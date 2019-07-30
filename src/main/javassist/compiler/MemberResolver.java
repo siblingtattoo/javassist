@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,8 +16,12 @@
 
 package javassist.compiler;
 
+import java.util.Hashtable;
+import java.lang.ref.WeakReference;
+import java.util.WeakHashMap;
 import java.util.List;
 import java.util.Iterator;
+
 import javassist.*;
 import javassist.bytecode.*;
 import javassist.compiler.ast.*;
@@ -34,22 +39,6 @@ public class MemberResolver implements TokenId {
 
     private static void fatal() throws CompileError {
         throw new CompileError("fatal");
-    }
-
-    /**
-     * @param jvmClassName      a class name.  Not a package name.
-     */
-    public void recordPackage(String jvmClassName) {
-        String classname = jvmToJavaName(jvmClassName);
-        for (;;) {
-            int i = classname.lastIndexOf('.');
-            if (i > 0) {
-                classname = classname.substring(0, i);
-                classPool.recordInvalidClassName(classname);
-            }
-            else
-                break;
-        }
     }
 
     public static class Method {
@@ -150,30 +139,29 @@ public class MemberResolver implements TokenId {
         }
         catch (NotFoundException e) {}
 
-        if (isIntf || Modifier.isAbstract(mod))
-            try {
-                CtClass[] ifs = clazz.getInterfaces();
-                int size = ifs.length;
-                for (int i = 0; i < size; ++i) {
-                    Method r = lookupMethod(ifs[i], methodName,
-                                            argTypes, argDims, argClassNames,
-                                            onlyExact);
+        try {
+            CtClass[] ifs = clazz.getInterfaces();
+            int size = ifs.length;
+            for (int i = 0; i < size; ++i) {
+                Method r = lookupMethod(ifs[i], methodName,
+                        argTypes, argDims, argClassNames,
+                        onlyExact);
+                if (r != null)
+                    return r;
+            }
+
+            if (isIntf) {
+                // finally search java.lang.Object.
+                CtClass pclazz = clazz.getSuperclass();
+                if (pclazz != null) {
+                    Method r = lookupMethod(pclazz, methodName, argTypes,
+                                            argDims, argClassNames, onlyExact);
                     if (r != null)
                         return r;
                 }
-
-                if (isIntf) {
-                    // finally search java.lang.Object.
-                    CtClass pclazz = clazz.getSuperclass();
-                    if (pclazz != null) {
-                        Method r = lookupMethod(pclazz, methodName, argTypes,
-                                                argDims, argClassNames, onlyExact);
-                        if (r != null)
-                            return r;
-                    }
-                }
             }
-            catch (NotFoundException e) {}
+        }
+        catch (NotFoundException e) {}
 
         return maybe;
     }
@@ -275,6 +263,7 @@ public class MemberResolver implements TokenId {
      * Only used by fieldAccess() in MemberCodeGen and TypeChecker.
      *
      * @param jvmClassName  a JVM class name.  e.g. java/lang/String
+     * @see #lookupClass(String, boolean)
      */
     public CtField lookupFieldByJvmName2(String jvmClassName, Symbol fieldSym,
                                          ASTree expr) throws NoFieldException
@@ -309,7 +298,7 @@ public class MemberResolver implements TokenId {
     }
 
     /**
-     * @param name      a qualified class name. e.g. java.lang.String
+     * @param className      a qualified class name. e.g. java.lang.String
      */
     public CtField lookupField(String className, Symbol fieldName)
         throws CompileError
@@ -336,7 +325,7 @@ public class MemberResolver implements TokenId {
     }
 
     /**
-     * @parma classname         jvm class name.
+     * @param classname         jvm class name.
      */
     public CtClass lookupClass(int type, int dim, String classname)
         throws CompileError
@@ -405,12 +394,53 @@ public class MemberResolver implements TokenId {
     public CtClass lookupClass(String name, boolean notCheckInner)
         throws CompileError
     {
+        Hashtable cache = getInvalidNames();
+        Object found = cache.get(name);
+        if (found == INVALID)
+            throw new CompileError("no such class: " + name);
+        else if (found != null)
+            try {
+                return classPool.get((String)found);
+            }
+            catch (NotFoundException e) {}
+
+        CtClass cc = null;
         try {
-            return lookupClass0(name, notCheckInner);
+            cc = lookupClass0(name, notCheckInner);
         }
         catch (NotFoundException e) {
-            return searchImports(name);
+            cc = searchImports(name);
         }
+
+        cache.put(name, cc.getName());
+        return cc;
+    }
+
+    private static final String INVALID = "<invalid>";
+    private static WeakHashMap invalidNamesMap = new WeakHashMap();
+    private Hashtable invalidNames = null;
+
+    // for unit tests
+    public static int getInvalidMapSize() { return invalidNamesMap.size(); }
+
+    private Hashtable getInvalidNames() {
+        Hashtable ht = invalidNames;
+        if (ht == null) {
+            synchronized (MemberResolver.class) {
+                WeakReference ref = (WeakReference)invalidNamesMap.get(classPool);
+                if (ref != null)
+                    ht = (Hashtable)ref.get();
+
+                if (ht == null) {
+                    ht = new Hashtable();
+                    invalidNamesMap.put(classPool, new WeakReference(ht));
+                }
+            }
+
+            invalidNames = ht;
+        }
+
+        return ht;
     }
 
     private CtClass searchImports(String orgName)
@@ -422,17 +452,19 @@ public class MemberResolver implements TokenId {
                 String pac = (String)it.next();
                 String fqName = pac + '.' + orgName;
                 try {
-                    CtClass cc = classPool.get(fqName);
-                    // if the class is found,
-                    classPool.recordInvalidClassName(orgName);
-                    return cc;
+                    return classPool.get(fqName);
                 }
                 catch (NotFoundException e) {
-                    classPool.recordInvalidClassName(fqName);
+                    try {
+                        if (pac.endsWith("." + orgName))
+                            return classPool.get(pac);
+                    }
+                    catch (NotFoundException e2) {}
                 }
             }
         }
 
+        getInvalidNames().put(orgName, INVALID);
         throw new CompileError("no such class: " + orgName);
     }
 
@@ -489,6 +521,19 @@ public class MemberResolver implements TokenId {
         catch (NotFoundException e) {}
         throw new CompileError("cannot find the super class of "
                                + c.getName());
+    }
+
+    public static CtClass getSuperInterface(CtClass c, String interfaceName)
+        throws CompileError
+    {
+        try {
+            CtClass[] intfs = c.getInterfaces();
+            for (int i = 0; i < intfs.length; i++)
+                if (intfs[i].getName().equals(interfaceName))
+                    return intfs[i];
+        } catch (NotFoundException e) {}
+        throw new CompileError("cannot find the super inetrface " + interfaceName
+                               + " of " + c.getName());
     }
 
     public static String javaToJvmName(String classname) {

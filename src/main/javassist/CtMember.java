@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -41,6 +42,8 @@ public abstract class CtMember {
         public String getSignature() { return null; }
         public void setAttribute(String name, byte[] data) {}
         public void setModifiers(int mod) {}
+        public String getGenericSignature() { return null; }
+        public void setGenericSignature(String sig) {}
 
         private CtMember methodTail;
         private CtMember consTail;     // constructor tail
@@ -267,6 +270,27 @@ public abstract class CtMember {
      * <code>getSignature()</code> returns the same string.
      */
     public abstract String getSignature();
+
+    /**
+     * Returns the generic signature of the member.
+     *
+     * @see javassist.bytecode.SignatureAttribute#toFieldSignature(String)
+     * @see javassist.bytecode.SignatureAttribute#toMethodSignature(String)
+     * @see CtClass#getGenericSignature()
+     * @since 3.17
+     */
+    public abstract String getGenericSignature();
+
+    /**
+     * Sets the generic signature of the member.
+     *
+     * @param sig   a new generic signature.
+     * @see javassist.bytecode.SignatureAttribute.ObjectType#encode()
+     * @see javassist.bytecode.SignatureAttribute.MethodSignature#encode()
+     * @see CtClass#setGenericSignature(String)
+     * @since 3.17
+     */
+    public abstract void setGenericSignature(String sig);
 
     /**
      * Obtains a user-defined attribute with the given name.

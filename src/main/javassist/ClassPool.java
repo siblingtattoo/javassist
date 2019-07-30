@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -30,6 +31,8 @@ import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.Enumeration;
+
+import javassist.bytecode.ClassFile;
 import javassist.bytecode.Descriptor;
 
 /**
@@ -69,6 +72,7 @@ import javassist.bytecode.Descriptor;
 public class ClassPool {
     // used by toClass().
     private static java.lang.reflect.Method defineClass1, defineClass2;
+    private static java.lang.reflect.Method definePackage;
 
     static {
         try {
@@ -82,6 +86,11 @@ public class ClassPool {
                     defineClass2 = cl.getDeclaredMethod("defineClass",
                            new Class[] { String.class, byte[].class,
                                  int.class, int.class, ProtectionDomain.class });
+
+                    definePackage = cl.getDeclaredMethod("definePackage",
+                            new Class[] { String.class, String.class, String.class,
+                                          String.class, String.class, String.class,
+                                          String.class, java.net.URL.class });
                     return null;
                 }
             });
@@ -206,9 +215,9 @@ public class ClassPool {
      * <p>When this method is called for the first time, the default
      * class pool is created with the following code snippet:
      *
-     * <ul><code>ClassPool cp = new ClassPool();
+     * <pre>ClassPool cp = new ClassPool();
      * cp.appendSystemPath();
-     * </code></ul>
+     * </pre>
      *
      * <p>If the default class pool cannot find any class files,
      * try <code>ClassClassPath</code> and <code>LoaderClassPath</code>.
@@ -243,7 +252,7 @@ public class ClassPool {
      * caching of classes.
      *
      * @see #getCached(String)
-     * @see #removeCached(String,CtClass)
+     * @see #removeCached(String)
      */
     protected void cacheCtClass(String classname, CtClass c, boolean dynamic) {
         classes.put(classname, c);
@@ -286,6 +295,9 @@ public class ClassPool {
      * Don't record the <code>java.lang</code> package, which has
      * been implicitly recorded by default.
      *
+     * <p>Since version 3.14, <code>packageName</code> can be a
+     * fully-qualified class name.
+     *
      * <p>Note that <code>get()</code> in <code>ClassPool</code> does
      * not search the recorded package.  Only the compiler searches it.
      *
@@ -311,7 +323,7 @@ public class ClassPool {
     }
 
     /**
-     * Returns all the package names recorded by <code>importPackage()</code>. 
+     * Returns all the package names recorded by <code>importPackage()</code>.
      *
      * @see #importPackage(String)
      * @since 3.1
@@ -321,17 +333,21 @@ public class ClassPool {
     }
 
     /**
-     * Records a name that never exists.
+     * Records a class name that never exists.
      * For example, a package name can be recorded by this method.
      * This would improve execution performance
-     * since <code>get()</code> does not search the class path at all
+     * since <code>get()</code> quickly throw an exception
+     * without searching the class path at all
      * if the given name is an invalid name recorded by this method.
      * Note that searching the class path takes relatively long time.
      *
-     * @param name          a class name (separeted by dot).
+     * <p>The current implementation of this method performs nothing.
+     *
+     * @param name          an invalid class name (separeted by dots).
+     * @deprecated
      */
     public void recordInvalidClassName(String name) {
-        source.recordInvalidClassName(name);
+        // source.recordInvalidClassName(name);
     }
 
     /**
@@ -367,9 +383,9 @@ public class ClassPool {
      * This method is useful if you want to generate a new class as a copy
      * of another class (except the class name).  For example,
      *
-     * <ul><pre>
+     * <pre>
      * getAndRename("Point", "Pair")
-     * </pre></ul>
+     * </pre>
      *
      * returns a <code>CtClass</code> object representing <code>Pair</code>
      * class.  The definition of <code>Pair</code> is the same as that of
@@ -480,7 +496,7 @@ public class ClassPool {
      * that classname can be an array-type "descriptor" (an encoded
      * type name) such as <code>[Ljava/lang/Object;</code>.
      *
-     * <p>Using this method is not recommended; this method should be 
+     * <p>Using this method is not recommended; this method should be
      * used only to obtain the <code>CtClass</code> object
      * with a name returned from <code>getClassInfo</code> in
      * <code>javassist.bytecode.ClassPool</code>.  <code>getClassInfo</code>
@@ -503,7 +519,6 @@ public class ClassPool {
 
     /**
      * @param useCache      false if the cached CtClass must be ignored.
-     * @param searchParent  false if the parent class pool is not searched.
      * @return null     if the class could not be found.
      */
     protected synchronized CtClass get0(String classname, boolean useCache)
@@ -545,7 +560,7 @@ public class ClassPool {
      * @return null if the class file could not be found.
      */
     protected CtClass createCtClass(String classname, boolean useCache) {
-        // accept "[L<class name>;" as a class name. 
+        // accept "[L<class name>;" as a class name.
         if (classname.charAt(0) == '[')
             classname = Descriptor.toClassName(classname);
 
@@ -723,6 +738,54 @@ public class ClassPool {
 
     /**
      * Creates a new class (or interface) from the given class file.
+     * If there already exists a class with the same name, the new class
+     * overwrites that previous class.
+     *
+     * <p>This method is used for creating a <code>CtClass</code> object
+     * directly from a class file.  The qualified class name is obtained
+     * from the class file; you do not have to explicitly give the name.
+     *
+     * @param classfile         class file.
+     * @throws RuntimeException if there is a frozen class with the
+     *                          the same name.
+     * @since 3.20
+     */
+    public CtClass makeClass(ClassFile classfile)
+        throws RuntimeException
+    {
+        return makeClass(classfile, true);
+    }
+
+    /**
+     * Creates a new class (or interface) from the given class file.
+     * If there already exists a class with the same name, the new class
+     * overwrites that previous class.
+     *
+     * <p>This method is used for creating a <code>CtClass</code> object
+     * directly from a class file.  The qualified class name is obtained
+     * from the class file; you do not have to explicitly give the name.
+     *
+     * @param classfile     class file.
+     * @param ifNotFrozen       throws a RuntimeException if this parameter is true
+     *                          and there is a frozen class with the same name.
+     * @since 3.20
+     */
+    public CtClass makeClass(ClassFile classfile, boolean ifNotFrozen)
+        throws RuntimeException
+    {
+        compress();
+        CtClass clazz = new CtClassType(classfile, this);
+        clazz.checkModify();
+        String classname = clazz.getName();
+        if (ifNotFrozen)
+            checkNotFrozen(classname);
+
+        cacheCtClass(classname, clazz, true);
+        return clazz;
+    }
+
+    /**
+     * Creates a new class (or interface) from the given class file.
      * If there already exists a class with the same name, this method
      * returns the existing class; a new class is never created from
      * the given class file.
@@ -801,7 +864,7 @@ public class ClassPool {
 
     /**
      * Creates a new public nested class.
-     * This method is called by CtClassType.makeNestedClass().
+     * This method is called by {@link CtClassType#makeNestedClass()}.
      *
      * @param classname     a fully-qualified class name.
      * @return      the nested class.
@@ -841,6 +904,28 @@ public class ClassPool {
         CtClass clazz = new CtNewClass(name, this, true, superclass);
         cacheCtClass(name, clazz, true);
         return clazz;
+    }
+
+    /**
+     * Creates a new annotation.
+     * If there already exists a class/interface with the same name,
+     * the new interface overwrites that previous one.
+     *
+     * @param name      a fully-qualified interface name.
+     *                  Or null if the annotation has no super interface.
+     * @throws RuntimeException if the existing interface is frozen.
+     * @since 3.19
+     */
+    public CtClass makeAnnotation(String name) throws RuntimeException {
+        try {
+            CtClass cc = makeInterface(name, get("java.lang.annotation.Annotation"));
+            cc.setModifiers(cc.getModifiers() | Modifier.ANNOTATION);
+            return cc;
+        }
+        catch (NotFoundException e) {
+            // should never happen.
+            throw new RuntimeException(e.getMessage(), e);
+        }
     }
 
     /**
@@ -922,7 +1007,7 @@ public class ClassPool {
     /**
      * Detatches the <code>ClassPath</code> object from the search path.
      * The detached <code>ClassPath</code> object cannot be added
-     * to the pathagain.
+     * to the path again.
      */
     public void removeClassPath(ClassPath cp) {
         source.removeClassPath(cp);
@@ -962,8 +1047,8 @@ public class ClassPool {
      * allowed any more.
      * To load the class, this method uses the context class loader
      * of the current thread.  It is obtained by calling
-     * <code>getClassLoader()</code>.  
-     * 
+     * <code>getClassLoader()</code>.
+     *
      * <p>This behavior can be changed by subclassing the pool and changing
      * the <code>getClassLoader()</code> method.
      * If the program is running on some application
@@ -983,15 +1068,15 @@ public class ClassPool {
     public Class toClass(CtClass clazz) throws CannotCompileException {
         // Some subclasses of ClassPool may override toClass(CtClass,ClassLoader).
         // So we should call that method instead of toClass(.., ProtectionDomain).
-        return toClass(clazz, getClassLoader()); 
+        return toClass(clazz, getClassLoader());
     }
 
     /**
      * Get the classloader for <code>toClass()</code>, <code>getAnnotations()</code> in
      * <code>CtClass</code>, etc.
-     * 
+     *
      * <p>The default is the context class loader.
-     * 
+     *
      * @return the classloader for the pool
      * @see #toClass(CtClass)
      * @see CtClass#getAnnotations()
@@ -999,10 +1084,10 @@ public class ClassPool {
     public ClassLoader getClassLoader() {
         return getContextClassLoader();
     }
-    
+
     /**
      * Obtains a class loader that seems appropriate to look up a class
-     * by name. 
+     * by name.
      */
     static ClassLoader getContextClassLoader() {
         return Thread.currentThread().getContextClassLoader();
@@ -1076,7 +1161,7 @@ public class ClassPool {
                     new Integer(b.length), domain};
             }
 
-            return toClass2(method, loader, args);
+            return (Class)toClass2(method, loader, args);
         }
         catch (RuntimeException e) {
             throw e;
@@ -1089,13 +1174,13 @@ public class ClassPool {
         }
     }
 
-    private static synchronized Class toClass2(Method method,
+    private static synchronized Object toClass2(Method method,
             ClassLoader loader, Object[] args)
         throws Exception
     {
         method.setAccessible(true);
         try {
-            return (Class)method.invoke(loader, args);
+            return method.invoke(loader, args);
         }
         finally {
             method.setAccessible(false);
@@ -1104,5 +1189,48 @@ public class ClassPool {
 
     public String getResource(String classname) {
         return source.getResource(classname);
+
+    /**
+     * Defines a new package.  If the package is already defined, this method
+     * performs nothing.
+     *
+     * <p>You do not necessarily need to
+     * call this method.  If this method is called, then
+     * <code>getPackage()</code> on the <code>Class</code> object returned
+     * by <code>toClass()</code> will return a non-null object.
+     *
+     * @param loader        the class loader passed to <code>toClass()</code> or
+     *                      the default one obtained by <code>getClassLoader()</code>.
+     * @param name          the package name.
+     * @see #getClassLoader()
+     * @see #toClass(CtClass)
+     * @see CtClass#toClass()
+     * @since 3.16
+     */
+    public void makePackage(ClassLoader loader, String name)
+        throws CannotCompileException
+    {
+        Object[] args = new Object[] {
+                name, null, null, null, null, null, null, null };
+        Throwable t;
+        try {
+            toClass2(definePackage, loader, args);
+            return;
+        }
+        catch (java.lang.reflect.InvocationTargetException e) {
+            t = e.getTargetException();
+            if (t == null)
+                t = e;
+            else if (t instanceof IllegalArgumentException) {
+                // if the package is already defined, an IllegalArgumentException
+                // is thrown.
+                return;
+            }
+        }
+        catch (Exception e) {
+            t = e;
+        }
+
+        throw new CannotCompileException(t);
     }
 }

@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -564,7 +565,13 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
         if (token == '.') {
             String member = ((Symbol)expr.oprand2()).get();
             if (member.equals("length"))
-                atArrayLength(expr);
+                try {
+                    atArrayLength(expr);
+                }
+                catch (NoFieldException nfe) {
+                    // length might be a class or package name.
+                    atFieldRead(expr);
+                }
             else if (member.equals("class"))                
                 atClassObject(expr);  // .class
             else
@@ -649,28 +656,34 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
                                                false);
             else if (op == '.') {
                 ASTree target = e.oprand1();
-                try {
-                    target.accept(this);
-                }
-                catch (NoFieldException nfe) {
-                    if (nfe.getExpr() != target)
-                        throw nfe;
+                String classFollowedByDotSuper = isDotSuper(target);
+                if (classFollowedByDotSuper != null)
+                    targetClass = MemberResolver.getSuperInterface(thisClass,
+                                                        classFollowedByDotSuper);
+                else {
+                    try {
+                        target.accept(this);
+                    }
+                    catch (NoFieldException nfe) {
+                        if (nfe.getExpr() != target)
+                            throw nfe;
 
-                    // it should be a static method.
-                    exprType = CLASS;
-                    arrayDim = 0;
-                    className = nfe.getField(); // JVM-internal
-                    e.setOperator(MEMBER);
-                    e.setOprand1(new Symbol(MemberResolver.jvmToJavaName(
-                                                            className)));
-                }
+                        // it should be a static method.
+                        exprType = CLASS;
+                        arrayDim = 0;
+                        className = nfe.getField(); // JVM-internal
+                        e.setOperator(MEMBER);
+                        e.setOprand1(new Symbol(MemberResolver.jvmToJavaName(
+                                                                className)));
+                    }
 
-                if (arrayDim > 0)
-                    targetClass = resolver.lookupClass(javaLangObject, true);
-                else if (exprType == CLASS /* && arrayDim == 0 */)
-                    targetClass = resolver.lookupClassByJvmName(className);
-                else
-                    badMethod();
+                    if (arrayDim > 0)
+                        targetClass = resolver.lookupClass(javaLangObject, true);
+                    else if (exprType == CLASS /* && arrayDim == 0 */)
+                        targetClass = resolver.lookupClassByJvmName(className);
+                    else
+                        badMethod();
+                }
             }
             else
                 badMethod();
@@ -685,6 +698,26 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
 
     private static void badMethod() throws CompileError {
         throw new CompileError("bad method");
+    }
+
+    /**
+     * Returns non-null if target is something like Foo.super
+     * for accessing the default method in an interface.
+     * Otherwise, null.
+     *
+     * @return the class name followed by {@code .super} or null.
+     */
+    static String isDotSuper(ASTree target) {
+        if (target instanceof Expr) {
+            Expr e = (Expr)target;
+            if (e.getOperator() == '.') {
+                ASTree right = e.oprand2();
+                if (right instanceof Keyword && ((Keyword)right).get() == SUPER)
+                    return ((Symbol)e.oprand1()).get();
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -892,6 +925,9 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
 
     public void atArrayLength(Expr expr) throws CompileError {
         expr.oprand1().accept(this);
+        if (arrayDim == 0)
+            throw new NoFieldException("length", expr);
+
         exprType = INT;
         arrayDim = 0;
     }

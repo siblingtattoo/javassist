@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,8 +16,12 @@
 
 package javassist.tools.reflect;
 
+import java.util.Iterator;
 import javassist.*;
 import javassist.CtMethod.ConstParameter;
+import javassist.bytecode.ClassFile;
+import javassist.bytecode.BadBytecode;
+import javassist.bytecode.MethodInfo;
 
 /**
  * The class implementing the behavioral reflection mechanism.
@@ -30,16 +35,16 @@ import javassist.CtMethod.ConstParameter;
  *
  * <p>To do this, the original class file representing a reflective class:
  *
- * <ul><pre>
+ * <pre>
  * class Person {
  *   public int f(int i) { return i + 1; }
  *   public int value;
  * }
- * </pre></ul>
+ * </pre>
  *
  * <p>is modified so that it represents a class:
  *
- * <ul><pre>
+ * <pre>
  * class Person implements Metalevel {
  *   public int _original_f(int i) { return i + 1; }
  *   public int f(int i) { <i>delegate to the metaobject</i> }
@@ -52,7 +57,7 @@ import javassist.CtMethod.ConstParameter;
  *   public Metaobject _getMetaobject() { <i>return a metaobject</i> }
  *   public void _setMetaobject(Metaobject m) { <i>change a metaobject</i> }
  * }
- * </pre></ul>
+ * </pre>
  *
  * @see javassist.tools.reflect.ClassMetaobject
  * @see javassist.tools.reflect.Metaobject
@@ -106,6 +111,7 @@ public class Reflection implements Translator {
             = "javassist.tools.reflect.Sample is not found or broken.";
         try {
             CtClass c = classPool.get("javassist.tools.reflect.Sample");
+            rebuildClassFile(c.getClassFile());
             trapMethod = c.getDeclaredMethod("trap");
             trapStaticMethod = c.getDeclaredMethod("trapStatic");
             trapRead = c.getDeclaredMethod("trapRead");
@@ -114,6 +120,8 @@ public class Reflection implements Translator {
                 = new CtClass[] { classPool.get("java.lang.Object") };
         }
         catch (NotFoundException e) {
+            throw new RuntimeException(msg);
+        } catch (BadBytecode e) {
             throw new RuntimeException(msg);
         }
     }
@@ -379,6 +387,17 @@ public class Reflection implements Translator {
                 wmethod.setModifiers(mod);
                 clazz.addMethod(wmethod);
             }
+        }
+    }
+
+    public void rebuildClassFile(ClassFile cf) throws BadBytecode {
+        if (ClassFile.MAJOR_VERSION < ClassFile.JAVA_6)
+            return;
+
+        Iterator methods = cf.getMethods().iterator();
+        while (methods.hasNext()) {
+            MethodInfo mi = (MethodInfo)methods.next();
+            mi.rebuildStackMap(classPool);
         }
     }
 }

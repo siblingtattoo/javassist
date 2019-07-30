@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -891,7 +892,7 @@ public final class Parser implements TokenId {
     /* cast.expr : "(" builtin.type ("[" "]")* ")" unary.expr
                  | "(" class.type ("[" "]")* ")" unary.expr2
 
-       unary.expr2 is a unary.expr begining with "(", NULL, StringL,
+       unary.expr2 is a unary.expr beginning with "(", NULL, StringL,
        Identifier, THIS, SUPER, or NEW.
 
        Either "(int.class)" or "(String[].class)" is a not cast expression.
@@ -1000,6 +1001,7 @@ public final class Parser implements TokenId {
      *              | postfix.expr "." Identifier
      *              | postfix.expr ( "[" "]" )* "." CLASS
      *              | postfix.expr "#" Identifier
+     *              | postfix.expr "." SUPER
      *
      * "#" is not an operator of regular Java.  It separates
      * a class name and a member name in an expression for static member
@@ -1057,9 +1059,10 @@ public final class Parser implements TokenId {
             case '.' :
                 lex.get();
                 t = lex.get();
-                if (t == CLASS) {
+                if (t == CLASS)
                     expr = parseDotClass(expr, 0);
-                }
+                else if (t == SUPER)
+                    expr = Expr.make('.', new Symbol(toClassName(expr)), new Keyword(t));
                 else if (t == Identifier) {
                     str = lex.getString();
                     expr = Expr.make('.', expr, new Member(str));
