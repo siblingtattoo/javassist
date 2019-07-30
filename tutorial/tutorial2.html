@@ -481,7 +481,8 @@ compiled code at the end of the method.  In the statement given to
 available.
 
 <p>The variable <code>$_</code> represents the resulting value of the
-method.  The type of that variable is the type of the result type (the
+method.
+The type of that variable is the type of the result type (the
 return type) of the method.  If the result type is <code>void</code>,
 then the type of <code>$_</code> is <code>Object</code> and the value
 of <code>$_</code> is <code>null</code>.
@@ -664,7 +665,7 @@ with a block:
 
 <p>so that the first parameter to <code>move()</code> is always 0.
 Note that the substituted code is not an expression but
-a statement or a block.
+a statement or a block.  It cannot be or contain a try-catch statement.
 
 <p>The method <code>instrument()</code> searches a method body.
 If it finds an expression such as a method call, field access, and object
@@ -1563,15 +1564,21 @@ has several limitations with respect to the language that the compiler can
 accept.  Those limitations are:
 
 <p><li>The new syntax introduced by J2SE 5.0 (including enums and generics)
-has not been supported.  Annotations are supported only by the low level
+has not been supported.  Annotations are supported by the low level
 API of Javassist.
-See the <code>javassist.bytecode.annotation</code> package.
+See the <code>javassist.bytecode.annotation</code> package
+(and also <code>getAnnotations()</code>
+in <code>CtClass</code> and <code>CtBehavior</code>).
+Generics are also only partly supported.  See <a href="./tutorial3.html#generics">the latter section</a> for more details.
 
 <p><li>Array initializers, a comma-separated list of expressions
 enclosed by braces <code>{</code> and <code>}</code>, are not
 available unless the array dimension is one.
 
 <p><li>Inner classes or anonymous classes are not supported.
+Note that this is a limitation of the compiler only.
+It cannot compile source code including an anonymous-class declaration. 
+Javassist can read and modify a class file of inner/anonymous class.
 
 <p><li>Labeled <code>continue</code> and <code>break</code> statements
 are not supported.
@@ -1622,6 +1629,6 @@ write:
 
 <hr>
 Java(TM) is a trademark of Sun Microsystems, Inc.<br>
-Copyright (C) 2000-2007 by Shigeru Chiba, All rights reserved.
+Copyright (C) 2000-2015 by Shigeru Chiba, All rights reserved.
 </body>
 </html>

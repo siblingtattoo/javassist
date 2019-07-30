@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -14,6 +15,9 @@
  */
 
 package javassist.expr;
+
+import java.util.LinkedList;
+import java.util.List;
 
 import javassist.CannotCompileException;
 import javassist.ClassPool;
@@ -34,9 +38,6 @@ import javassist.bytecode.ExceptionsAttribute;
 import javassist.bytecode.MethodInfo;
 import javassist.bytecode.Opcode;
 import javassist.compiler.Javac;
-
-import java.util.Iterator;
-import java.util.LinkedList;
 
 /**
  * Expression.
@@ -133,7 +134,7 @@ public abstract class Expr implements Opcode {
     public CtClass[] mayThrow() {
         ClassPool pool = thisClass.getClassPool();
         ConstPool cp = thisMethod.getConstPool();
-        LinkedList list = new LinkedList();
+        List<CtClass> list = new LinkedList<CtClass>();
         try {
             CodeAttribute ca = thisMethod.getCodeAttribute();
             ExceptionTable et = ca.getExceptionTable();
@@ -167,14 +168,12 @@ public abstract class Expr implements Opcode {
             }
         }
 
-        return (CtClass[])list.toArray(new CtClass[list.size()]);
+        return list.toArray(new CtClass[list.size()]);
     }
 
-    private static void addClass(LinkedList list, CtClass c) {
-        Iterator it = list.iterator();
-        while (it.hasNext())
-            if (it.next() == c)
-                return;
+    private static void addClass(List<CtClass> list, CtClass c) {
+        if (list.contains(c))
+            return;
 
         list.add(c);
     }
@@ -194,7 +193,7 @@ public abstract class Expr implements Opcode {
 
     /**
      * Returns the line number of the source line containing the expression.
-     * 
+     *
      * @return -1 if this information is not available.
      */
     public int getLineNumber() {
@@ -210,8 +209,7 @@ public abstract class Expr implements Opcode {
         ClassFile cf = thisClass.getClassFile2();
         if (cf == null)
             return null;
-        else
-            return cf.getSourceFile();
+        return cf.getSourceFile();
     }
 
     static final boolean checkResultValue(CtClass retType, String prog)
@@ -248,17 +246,15 @@ public abstract class Expr implements Opcode {
             Bytecode bytecode) {
         if (i >= n)
             return;
-        else {
-            CtClass c = params[i];
-            int size;
-            if (c instanceof CtPrimitiveType)
-                size = ((CtPrimitiveType)c).getDataSize();
-            else
-                size = 1;
+        CtClass c = params[i];
+        int size;
+        if (c instanceof CtPrimitiveType)
+            size = ((CtPrimitiveType)c).getDataSize();
+        else
+            size = 1;
 
-            storeStack0(i + 1, n, params, regno + size, bytecode);
-            bytecode.addStore(regno, c);
-        }
+        storeStack0(i + 1, n, params, regno + size, bytecode);
+        bytecode.addStore(regno, c);
     }
 
     // The implementation of replace() should call thisClass.checkModify()
@@ -270,7 +266,7 @@ public abstract class Expr implements Opcode {
      * Replaces this expression with the bytecode derived from
      * the given source text.
      *
-     * @param statement         a Java statement.
+     * @param statement         a Java statement except try-catch.
      */
     public abstract void replace(String statement) throws CannotCompileException;
 
@@ -278,7 +274,7 @@ public abstract class Expr implements Opcode {
      * Replaces this expression with the bytecode derived from
      * the given source text and <code>ExprEditor</code>.
      *
-     * @param statement         a Java statement.
+     * @param statement         a Java statement except try-catch.
      * @param recursive         if not null, the substituted bytecode
      *                          is recursively processed by the given
      *                          <code>ExprEditor</code>.

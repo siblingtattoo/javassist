@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -14,6 +15,8 @@
  */
 
 package javassist;
+
+import java.util.HashMap;
 
 import javassist.bytecode.Descriptor;
 
@@ -24,7 +27,7 @@ import javassist.bytecode.Descriptor;
  * definition or a method body.  Define a subclass of this class
  * if a more complex mapping algorithm is needed.  For example,
  *
- * <ul><pre>class MyClassMap extends ClassMap {
+ * <pre>class MyClassMap extends ClassMap {
  *   public Object get(Object jvmClassName) {
  *     String name = toJavaName((String)jvmClassName);
  *     if (name.startsWith("java."))
@@ -32,7 +35,7 @@ import javassist.bytecode.Descriptor;
  *     else
  *         return super.get(jvmClassName);
  *   }
- * }</pre></ul>
+ * }</pre>
  *
  * <p>This subclass maps <code>java.lang.String</code> to
  * <code>java2.lang.String</code>.  Note that <code>get()</code>
@@ -40,11 +43,15 @@ import javassist.bytecode.Descriptor;
  * For example, the internal representation of <code>java.lang.String</code>
  * is <code>java/lang/String</code>.
  *
+ * <p>Note that this is a map from <code>String</code> to <code>String</code>.
+ *
  * @see #get(Object)
  * @see CtClass#replaceClassName(ClassMap)
  * @see CtNewMethod#copy(CtMethod,String,CtClass,ClassMap)
  */
-public class ClassMap extends java.util.HashMap {
+public class ClassMap extends HashMap<String,String> {
+    /** default serialVersionUID */
+    private static final long serialVersionUID = 1L;
     private ClassMap parent;
 
     /**
@@ -71,7 +78,7 @@ public class ClassMap extends java.util.HashMap {
     /**
      * Maps a class name to another name in this hashtable.
      * If the hashtable contains another mapping from the same
-     * class name, the old mapping is replaced. 
+     * class name, the old mapping is replaced.
      * This method translates the given class names into the
      * internal form used in the JVM before putting it in
      * the hashtable.
@@ -86,21 +93,23 @@ public class ClassMap extends java.util.HashMap {
      * @param newname   the substituted class name.
      * @see #fix(String)
      */
-    public void put(String oldname, String newname) {
+    @Override
+    public String put(String oldname, String newname) {
         if (oldname == newname)
-            return;
+            return oldname;
 
         String oldname2 = toJvmName(oldname);
-        String s = (String)get(oldname2);
+        String s = get(oldname2);
         if (s == null || !s.equals(oldname2))
-            super.put(oldname2, toJvmName(newname));
+            return super.put(oldname2, toJvmName(newname));
+        return s;
     }
 
     /**
      * Is equivalent to <code>put()</code> except that
      * the given mapping is not recorded into the hashtable
      * if another mapping from <code>oldname</code> is
-     * already included. 
+     * already included.
      *
      * @param oldname       the original class name.
      * @param newname       the substituted class name.
@@ -110,13 +119,13 @@ public class ClassMap extends java.util.HashMap {
             return;
 
         String oldname2 = toJvmName(oldname);
-        String s = (String)get(oldname2);
+        String s = get(oldname2);
         if (s == null)
             super.put(oldname2, toJvmName(newname));
     }
 
-    protected final void put0(Object oldname, Object newname) {
-        super.put(oldname, newname);
+    protected final String put0(String oldname, String newname) {
+        return super.put(oldname, newname);
     }
 
     /**
@@ -129,14 +138,13 @@ public class ClassMap extends java.util.HashMap {
      * @see #toJvmName(String)
      * @see #toJavaName(String)
      */
-    public Object get(Object jvmClassName) {
-        Object found = super.get(jvmClassName);
+    @Override
+    public String get(Object jvmClassName) {
+        String found = super.get(jvmClassName);
         if (found == null && parent != null)
             return parent.get(jvmClassName);
-        else
-            return found;
+        return found;
     }
-
     /**
      * Prevents a mapping from the specified class name to another name.
      */

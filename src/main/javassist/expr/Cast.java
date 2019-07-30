@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,9 +16,23 @@
 
 package javassist.expr;
 
-import javassist.*;
-import javassist.bytecode.*;
-import javassist.compiler.*;
+import javassist.CannotCompileException;
+import javassist.ClassPool;
+import javassist.CtBehavior;
+import javassist.CtClass;
+import javassist.NotFoundException;
+import javassist.bytecode.BadBytecode;
+import javassist.bytecode.Bytecode;
+import javassist.bytecode.CodeAttribute;
+import javassist.bytecode.CodeIterator;
+import javassist.bytecode.ConstPool;
+import javassist.bytecode.MethodInfo;
+import javassist.bytecode.Opcode;
+import javassist.compiler.CompileError;
+import javassist.compiler.Javac;
+import javassist.compiler.JvstCodeGen;
+import javassist.compiler.JvstTypeChecker;
+import javassist.compiler.ProceedHandler;
 import javassist.compiler.ast.ASTList;
 
 /**
@@ -35,6 +50,7 @@ public class Cast extends Expr {
      * Returns the method or constructor containing the type cast
      * expression represented by this object.
      */
+    @Override
     public CtBehavior where() { return super.where(); }
 
     /**
@@ -43,6 +59,7 @@ public class Cast extends Expr {
      *
      * @return -1       if this information is not available.
      */
+    @Override
     public int getLineNumber() {
         return super.getLineNumber();
     }
@@ -52,6 +69,7 @@ public class Cast extends Expr {
      *
      * @return null     if this information is not available.
      */
+    @Override
     public String getFileName() {
         return super.getFileName();
     }
@@ -74,6 +92,7 @@ public class Cast extends Expr {
      * including the expression can catch and the exceptions that
      * the throws declaration allows the method to throw.
      */
+    @Override
     public CtClass[] mayThrow() {
         return super.mayThrow();
     }
@@ -84,10 +103,12 @@ public class Cast extends Expr {
      *
      * <p>$0 is available but the value is <code>null</code>.
      *
-     * @param statement         a Java statement.
+     * @param statement         a Java statement except try-catch.
      */
+    @Override
     public void replace(String statement) throws CannotCompileException {
         thisClass.getClassFile();   // to call checkModify().
+        @SuppressWarnings("unused")
         ConstPool constPool = getConstPool();
         int pos = currentPos;
         int index = iterator.u16bitAt(pos + 1);
@@ -141,6 +162,7 @@ public class Cast extends Expr {
             retType = t;
         }
 
+        @Override
         public void doit(JvstCodeGen gen, Bytecode bytecode, ASTList args)
             throws CompileError
         {
@@ -154,7 +176,8 @@ public class Cast extends Expr {
             bytecode.addIndex(index);
             gen.setType(retType);
         }
-        
+
+        @Override
         public void setReturnType(JvstTypeChecker c, ASTList args)
             throws CompileError
         {

@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -16,8 +17,9 @@
 package javassist.bytecode;
 
 import java.io.PrintWriter;
-import javassist.Modifier;
 import java.util.List;
+
+import javassist.Modifier;
 
 /**
  * A utility class for priting the contents of a class file.
@@ -36,9 +38,6 @@ public class ClassFilePrinter {
      * Prints the contents of a class file.
      */
     public static void print(ClassFile cf, PrintWriter out) {
-        List list;
-        int n;
-
         /* 0x0020 (SYNCHRONIZED) means ACC_SUPER if the modifiers
          * are of a class.
          */
@@ -61,10 +60,8 @@ public class ClassFilePrinter {
         }
 
         out.println();
-        list = cf.getFields();
-        n = list.size();
-        for (int i = 0; i < n; ++i) {
-            FieldInfo finfo = (FieldInfo)list.get(i);
+        List<FieldInfo> fields = cf.getFields();
+        for (FieldInfo finfo:fields) {
             int acc = finfo.getAccessFlags();
             out.println(Modifier.toString(AccessFlag.toModifier(acc))
                         + " " + finfo.getName() + "\t"
@@ -73,10 +70,8 @@ public class ClassFilePrinter {
         }
 
         out.println();
-        list = cf.getMethods();
-        n = list.size();
-        for (int i = 0; i < n; ++i) {
-            MethodInfo minfo = (MethodInfo)list.get(i);
+        List<MethodInfo> methods = cf.getMethods();
+        for (MethodInfo minfo:methods) {
             int acc = minfo.getAccessFlags();
             out.println(Modifier.toString(AccessFlag.toModifier(acc))
                         + " " + minfo.getName() + "\t"
@@ -89,13 +84,11 @@ public class ClassFilePrinter {
         printAttributes(cf.getAttributes(), out, 'c');
     }
 
-    static void printAttributes(List list, PrintWriter out, char kind) {
+    static void printAttributes(List<AttributeInfo> list, PrintWriter out, char kind) {
         if (list == null)
             return;
 
-        int n = list.size();
-        for (int i = 0; i < n; ++i) {
-            AttributeInfo ai = (AttributeInfo)list.get(i);
+        for (AttributeInfo ai:list) {
             if (ai instanceof CodeAttribute) {
                 CodeAttribute ca = (CodeAttribute)ai;
                 out.println("attribute: " + ai.getName() + ": "
@@ -110,6 +103,9 @@ public class ClassFilePrinter {
             }
             else if (ai instanceof AnnotationsAttribute) {
                 out.println("annnotation: " + ai.toString());
+            }
+            else if (ai instanceof ParameterAnnotationsAttribute) {
+                out.println("parameter annnotations: " + ai.toString());
             }
             else if (ai instanceof StackMapTable) {
                 out.println("<stack map table begin>");

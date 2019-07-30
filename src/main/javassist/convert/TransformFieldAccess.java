@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,10 +16,12 @@
 
 package javassist.convert;
 
-import javassist.bytecode.*;
 import javassist.CtClass;
 import javassist.CtField;
 import javassist.Modifier;
+import javassist.bytecode.CodeAttribute;
+import javassist.bytecode.CodeIterator;
+import javassist.bytecode.ConstPool;
 
 final public class TransformFieldAccess extends Transformer {
     private String newClassname, newFieldname;
@@ -42,6 +45,7 @@ final public class TransformFieldAccess extends Transformer {
         this.constPool = null;
     }
 
+    @Override
     public void initialize(ConstPool cp, CodeAttribute attr) {
         if (constPool != cp)
             newIndex = 0;
@@ -53,6 +57,7 @@ final public class TransformFieldAccess extends Transformer {
      * in a superclass of the class in which the original field is
      * declared.
      */
+    @Override
     public int transform(CtClass clazz, int pos,
                          CodeIterator iterator, ConstPool cp)
     {

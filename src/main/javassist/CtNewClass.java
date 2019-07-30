@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -17,6 +18,7 @@ package javassist;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
+
 import javassist.bytecode.ClassFile;
 
 class CtNewClass extends CtClassType {
@@ -42,6 +44,7 @@ class CtNewClass extends CtClassType {
         hasConstructor = isInterface;
     }
 
+    @Override
     protected void extendToString(StringBuffer buffer) {
         if (hasConstructor)
             buffer.append("hasConstructor ");
@@ -49,6 +52,7 @@ class CtNewClass extends CtClassType {
         super.extendToString(buffer);
     }
 
+    @Override
     public void addConstructor(CtConstructor c)
         throws CannotCompileException
     {
@@ -56,6 +60,7 @@ class CtNewClass extends CtClassType {
         super.addConstructor(c);
     }
 
+    @Override
     public void toBytecode(DataOutputStream out)
         throws CannotCompileException, IOException
     {
@@ -116,8 +121,7 @@ class CtNewClass extends CtClassType {
             String pname2 = superclazz.getPackageName();
             if (pname == null)
                 return pname2 == null;
-            else
-                return pname.equals(pname2);
+            return pname.equals(pname2);
         }
 
         return true;

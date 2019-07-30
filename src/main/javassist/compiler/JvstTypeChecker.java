@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,8 +16,17 @@
 
 package javassist.compiler;
 
-import javassist.*;
-import javassist.compiler.ast.*;
+import javassist.ClassPool;
+import javassist.CtClass;
+import javassist.CtPrimitiveType;
+import javassist.NotFoundException;
+import javassist.compiler.ast.ASTList;
+import javassist.compiler.ast.ASTree;
+import javassist.compiler.ast.CallExpr;
+import javassist.compiler.ast.CastExpr;
+import javassist.compiler.ast.Expr;
+import javassist.compiler.ast.Member;
+import javassist.compiler.ast.Symbol;
 
 /* Type checker accepting extended Java syntax for Javassist.
  */
@@ -43,6 +53,7 @@ public class JvstTypeChecker extends TypeChecker {
     /* To support $args, $sig, and $type.
      * $args is an array of parameter list.
      */
+    @Override
     public void atMember(Member mem) throws CompileError {
         String name = mem.get();
         if (name.equals(codeGen.paramArrayName)) {
@@ -65,6 +76,7 @@ public class JvstTypeChecker extends TypeChecker {
             super.atMember(mem);
     }
 
+    @Override
     protected void atFieldAssign(Expr expr, int op, ASTree left, ASTree right)
         throws CompileError
     {
@@ -83,6 +95,7 @@ public class JvstTypeChecker extends TypeChecker {
             super.atFieldAssign(expr, op, left, right);
     }
 
+    @Override
     public void atCastExpr(CastExpr expr) throws CompileError {
         ASTList classname = expr.getClassName();
         if (classname != null && expr.getArrayDim() == 0) {
@@ -137,6 +150,7 @@ public class JvstTypeChecker extends TypeChecker {
     /* Delegates to a ProcHandler object if the method call is
      * $proceed().  It may process $cflow().
      */
+    @Override
     public void atCallExpr(CallExpr expr) throws CompileError {
         ASTree method = expr.oprand1();
         if (method instanceof Member) {
@@ -174,10 +188,10 @@ public class JvstTypeChecker extends TypeChecker {
             return (left instanceof Member
                     && ((Member)left).get().equals(codeGen.paramListName));
         }
-        else
-            return false;
+        return false;
     }
 
+    @Override
     public int getMethodArgsLength(ASTList args) {
         String pname = codeGen.paramListName;
         int n = 0;
@@ -196,6 +210,7 @@ public class JvstTypeChecker extends TypeChecker {
         return n;
     }
 
+    @Override
     public void atMethodArgs(ASTList args, int[] types, int[] dims,
                                 String[] cnames) throws CompileError {
         CtClass[] params = codeGen.paramTypeList;

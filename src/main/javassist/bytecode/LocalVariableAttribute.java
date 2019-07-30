@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -52,6 +53,7 @@ public class LocalVariableAttribute extends AttributeInfo {
      * @since 3.1
      * @deprecated
      */
+    @Deprecated
     public LocalVariableAttribute(ConstPool cp, String name) {
         super(cp, name, new byte[2]);
         ByteArray.write16bit(0, info, 0);
@@ -92,6 +94,7 @@ public class LocalVariableAttribute extends AttributeInfo {
         info = newInfo;
     }
 
+    @Override
     void renameClass(String oldname, String newname) {
         ConstPool cp = getConstPool();
         int n = tableLength();
@@ -110,7 +113,8 @@ public class LocalVariableAttribute extends AttributeInfo {
         return Descriptor.rename(desc, oldname, newname);
     }
 
-    void renameClass(Map classnames) {
+    @Override
+    void renameClass(Map<String,String> classnames) {
         ConstPool cp = getConstPool();
         int n = tableLength();
         for (int i = 0; i < n; ++i) {
@@ -124,7 +128,7 @@ public class LocalVariableAttribute extends AttributeInfo {
         }
     }
 
-    String renameEntry(String desc, Map classnames) {
+    String renameEntry(String desc, Map<String,String> classnames) {
         return Descriptor.rename(desc, classnames);
     }
 
@@ -290,7 +294,8 @@ public class LocalVariableAttribute extends AttributeInfo {
      * @param newCp     the constant pool table used by the new copy.
      * @param classnames        should be null.
      */
-    public AttributeInfo copy(ConstPool newCp, Map classnames) {
+    @Override
+    public AttributeInfo copy(ConstPool newCp, Map<String,String> classnames) {
         byte[] src = get();
         byte[] dest = new byte[src.length];
         ConstPool cp = getConstPool();

@@ -5,7 +5,8 @@
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -14,10 +15,11 @@
  */
 package javassist.bytecode.annotation;
 
-import javassist.ClassPool;
-import javassist.bytecode.ConstPool;
 import java.io.IOException;
 import java.lang.reflect.Method;
+
+import javassist.ClassPool;
+import javassist.bytecode.ConstPool;
 
 /**
  * Nested annotation.
@@ -44,17 +46,18 @@ public class AnnotationMemberValue extends MemberValue {
         value = a;
     }
 
+    @Override
     Object getValue(ClassLoader cl, ClassPool cp, Method m)
         throws ClassNotFoundException
     {
         return AnnotationImpl.make(cl, getType(cl), cp, value);
     }
 
-    Class getType(ClassLoader cl) throws ClassNotFoundException {
+    @Override
+    Class<?> getType(ClassLoader cl) throws ClassNotFoundException {
         if (value == null)
             throw new ClassNotFoundException("no type specified");
-        else
-            return loadClass(cl, value.getTypeName());
+        return loadClass(cl, value.getTypeName());
     }
 
     /**
@@ -74,6 +77,7 @@ public class AnnotationMemberValue extends MemberValue {
     /**
      * Obtains the string representation of this object.
      */
+    @Override
     public String toString() {
         return value.toString();
     }
@@ -81,6 +85,7 @@ public class AnnotationMemberValue extends MemberValue {
     /**
      * Writes the value.
      */
+    @Override
     public void write(AnnotationsWriter writer) throws IOException {
         writer.annotationValue();
         value.write(writer);
@@ -89,6 +94,7 @@ public class AnnotationMemberValue extends MemberValue {
     /**
      * Accepts a visitor.
      */
+    @Override
     public void accept(MemberValueVisitor visitor) {
         visitor.visitAnnotationMemberValue(this);
     }

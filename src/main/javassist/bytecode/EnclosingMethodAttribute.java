@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -97,10 +98,14 @@ public class EnclosingMethodAttribute extends AttributeInfo {
 
     /**
      * Returns the method name specified by <code>method_index</code>.
+     * If the method is a class initializer (static constructor),
+     * {@link MethodInfo#nameClinit} is returned. 
      */
     public String methodName() {
         ConstPool cp = getConstPool();
         int mi = methodIndex();
+        if (mi == 0)
+            return MethodInfo.nameClinit;
         int ni = cp.getNameAndTypeName(mi);
         return cp.getUtf8Info(ni);
     }
@@ -123,11 +128,11 @@ public class EnclosingMethodAttribute extends AttributeInfo {
      * @param classnames        pairs of replaced and substituted
      *                          class names.
      */
-    public AttributeInfo copy(ConstPool newCp, Map classnames) {
-        if (methodIndex() == 0) 
+    @Override
+    public AttributeInfo copy(ConstPool newCp, Map<String,String> classnames) {
+        if (methodIndex() == 0)
             return new EnclosingMethodAttribute(newCp, className());
-        else
-            return new EnclosingMethodAttribute(newCp, className(),
-                                            methodName(), methodDescriptor());
+        return new EnclosingMethodAttribute(newCp, className(),
+                                        methodName(), methodDescriptor());
     }
 }

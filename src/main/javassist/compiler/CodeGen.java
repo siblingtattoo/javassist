@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -17,10 +18,36 @@ package javassist.compiler;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import javassist.compiler.ast.*;
-import javassist.bytecode.*;
+import java.util.List;
 
-/* The code generator is implemeted by three files:
+import javassist.bytecode.Bytecode;
+import javassist.bytecode.Opcode;
+import javassist.compiler.ast.ASTList;
+import javassist.compiler.ast.ASTree;
+import javassist.compiler.ast.ArrayInit;
+import javassist.compiler.ast.AssignExpr;
+import javassist.compiler.ast.BinExpr;
+import javassist.compiler.ast.CallExpr;
+import javassist.compiler.ast.CastExpr;
+import javassist.compiler.ast.CondExpr;
+import javassist.compiler.ast.Declarator;
+import javassist.compiler.ast.DoubleConst;
+import javassist.compiler.ast.Expr;
+import javassist.compiler.ast.FieldDecl;
+import javassist.compiler.ast.InstanceOfExpr;
+import javassist.compiler.ast.IntConst;
+import javassist.compiler.ast.Keyword;
+import javassist.compiler.ast.Member;
+import javassist.compiler.ast.MethodDecl;
+import javassist.compiler.ast.NewExpr;
+import javassist.compiler.ast.Pair;
+import javassist.compiler.ast.Stmnt;
+import javassist.compiler.ast.StringL;
+import javassist.compiler.ast.Symbol;
+import javassist.compiler.ast.Variable;
+import javassist.compiler.ast.Visitor;
+
+/* The code generator is implemented by three files:
  * CodeGen.java, MemberCodeGen.java, and JvstCodeGen.
  * I just wanted to split a big file into three smaller ones.
  */
@@ -46,7 +73,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
      */
     public boolean inStaticMethod;
 
-    protected ArrayList breakList, continueList;
+    protected List<Integer>  breakList, continueList;
 
     /**
      * doit() in ReturnHook is called from atReturn().
@@ -170,18 +197,16 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
 
         if (dim == 0)
             return name;
-        else {
-            StringBuffer sbuf = new StringBuffer();
-            int d = dim;
-            while (d-- > 0)
-                sbuf.append('[');
+        StringBuffer sbuf = new StringBuffer();
+        int d = dim;
+        while (d-- > 0)
+            sbuf.append('[');
 
-            sbuf.append('L');
-            sbuf.append(name);
-            sbuf.append(';');
+        sbuf.append('L');
+        sbuf.append(name);
+        sbuf.append(';');
 
-            return sbuf.toString();
-        }
+        return sbuf.toString();
     }
 
     protected static String toJvmTypeName(int type, int dim) {
@@ -241,16 +266,21 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
             expr.accept(typeChecker);
     }
 
+    @Override
     public void atASTList(ASTList n) throws CompileError { fatal(); }
-    
+
+    @Override
     public void atPair(Pair n) throws CompileError { fatal(); }
 
+    @Override
     public void atSymbol(Symbol n) throws CompileError { fatal(); }
 
+    @Override
     public void atFieldDecl(FieldDecl field) throws CompileError {
         field.getInit().accept(this);
     }
 
+    @Override
     public void atMethodDecl(MethodDecl method) throws CompileError {
         ASTList mods = method.getModifiers();
         setMaxLocals(1);
@@ -262,7 +292,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
                 inStaticMethod = true;
             }
         }
-            
+
         ASTList params = method.getParams();
         while (params != null) {
             atDeclarator((Declarator)params.head());
@@ -319,6 +349,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
 
     protected abstract void insertDefaultSuperCall() throws CompileError;
 
+    @Override
     public void atStmnt(Stmnt st) throws CompileError {
         if (st == null)
             return;     // empty
@@ -380,7 +411,14 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         ASTree expr = st.head();
         Stmnt thenp = (Stmnt)st.tail().head();
         Stmnt elsep = (Stmnt)st.tail().tail().head();
-        compileBooleanExpr(false, expr);
+        if (compileBooleanExpr(false, expr)) {
+            hasReturned = false;
+            if (elsep != null)
+                elsep.accept(this);
+
+            return;
+        }
+
         int pc = bytecode.currentPc();
         int pc2 = 0;
         bytecode.addIndex(0);   // correct later
@@ -399,7 +437,6 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         }
 
         bytecode.write16bit(pc, bytecode.currentPc() - pc + 1);
-
         if (elsep != null) {
             elsep.accept(this);
             if (!thenHasReturned)
@@ -410,10 +447,10 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
     }
 
     private void atWhileStmnt(Stmnt st, boolean notDo) throws CompileError {
-        ArrayList prevBreakList = breakList;
-        ArrayList prevContList = continueList;
-        breakList = new ArrayList();
-        continueList = new ArrayList();
+        List<Integer>  prevBreakList = breakList;
+        List<Integer>  prevContList = continueList;
+        breakList = new ArrayList<Integer>();
+        continueList = new ArrayList<Integer>();
 
         ASTree expr = st.head();
         Stmnt body = (Stmnt)st.tail();
@@ -434,8 +471,12 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
             bytecode.write16bit(pc, pc3 - pc + 1);
 
         boolean alwaysBranch = compileBooleanExpr(true, expr);
-        bytecode.addIndex(pc2 - bytecode.currentPc() + 1);
+        if (alwaysBranch) {
+            bytecode.addOpcode(Opcode.GOTO);
+            alwaysBranch = breakList.size() == 0;
+        }
 
+        bytecode.addIndex(pc2 - bytecode.currentPc() + 1);
         patchGoto(breakList, bytecode.currentPc());
         patchGoto(continueList, pc3);
         continueList = prevContList;
@@ -443,19 +484,16 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         hasReturned = alwaysBranch;
     }
 
-    protected void patchGoto(ArrayList list, int targetPc) {
-        int n = list.size();
-        for (int i = 0; i < n; ++i) {
-            int pc = ((Integer)list.get(i)).intValue();
+    protected void patchGoto(List<Integer> list, int targetPc) {
+        for (int pc:list)
             bytecode.write16bit(pc, targetPc - pc + 1);
-        }
     }
 
     private void atForStmnt(Stmnt st) throws CompileError {
-        ArrayList prevBreakList = breakList;
-        ArrayList prevContList = continueList;
-        breakList = new ArrayList();
-        continueList = new ArrayList();
+        List<Integer>  prevBreakList = breakList;
+        List<Integer>  prevContList = continueList;
+        breakList = new ArrayList<Integer>();
+        continueList = new ArrayList<Integer>();
 
         Stmnt init = (Stmnt)st.head();
         ASTList p = st.tail();
@@ -470,7 +508,14 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         int pc = bytecode.currentPc();
         int pc2 = 0;
         if (expr != null) {
-            compileBooleanExpr(false, expr);
+            if (compileBooleanExpr(false, expr)) {
+                // in case of "for (...; false; ...)"
+                continueList = prevContList;
+                breakList = prevBreakList;
+                hasReturned = false;
+                return;
+            }
+
             pc2 = bytecode.currentPc();
             bytecode.addIndex(0);
         }
@@ -497,10 +542,26 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
     }
 
     private void atSwitchStmnt(Stmnt st) throws CompileError {
-        compileExpr(st.head());
+        boolean isString = false;
+        if (typeChecker != null) {
+            doTypeCheck(st.head());
+            isString = typeChecker.exprType == TypeChecker.CLASS
+                       && typeChecker.arrayDim == 0
+                       && TypeChecker.jvmJavaLangString.equals(typeChecker.className);
+        }
 
-        ArrayList prevBreakList = breakList;
-        breakList = new ArrayList();
+        compileExpr(st.head());
+        int tmpVar = -1;
+        if (isString) {
+            tmpVar = getMaxLocals();
+            incMaxLocals(1);
+            bytecode.addAstore(tmpVar);
+            bytecode.addAload(tmpVar);
+            bytecode.addInvokevirtual(TypeChecker.jvmJavaLangString, "hashCode", "()I");
+        }
+
+        List<Integer>  prevBreakList = breakList;
+        breakList = new ArrayList<Integer>();
         int opcodePc = bytecode.currentPc();
         bytecode.addOpcode(LOOKUPSWITCH);
         int npads = 3 - (opcodePc & 3);
@@ -520,6 +581,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         bytecode.addGap(npairs * 8);
 
         long[] pairs = new long[npairs];
+        ArrayList<Integer> gotoDefaults = new ArrayList<Integer>();
         int ipairs = 0;
         int defaultPc = -1;
         for (ASTList list = body; list != null; list = list.tail()) {
@@ -530,9 +592,18 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
             else if (op != CASE)
                 fatal();
             else {
+                int curPos = bytecode.currentPc();
+                long caseLabel;
+                if (isString) {
+                    // computeStringLabel() also adds bytecode as its side-effects.
+                    caseLabel = (long)computeStringLabel(label.head(), tmpVar, gotoDefaults);
+                }
+                else
+                    caseLabel = (long)computeLabel(label.head());
+
                 pairs[ipairs++]
-                    = ((long)computeLabel(label.head()) << 32) + 
-                      ((long)(bytecode.currentPc() - opcodePc) & 0xffffffff);
+                    = (caseLabel << 32) + 
+                      ((long)(curPos - opcodePc) & 0xffffffff);
             }
 
             hasReturned = false;
@@ -555,6 +626,8 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
             defaultPc = endPc;
 
         bytecode.write32bit(opcodePc2, defaultPc - opcodePc);
+        for (int addr: gotoDefaults)
+            bytecode.write16bit(addr, defaultPc - addr + 1);
 
         patchGoto(breakList, endPc);
         breakList = prevBreakList;
@@ -565,8 +638,27 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         expr = TypeChecker.stripPlusExpr(expr);
         if (expr instanceof IntConst)
             return (int)((IntConst)expr).get();
-        else
-            throw new CompileError("bad case label");
+        throw new CompileError("bad case label");
+    }
+
+    private int computeStringLabel(ASTree expr, int tmpVar, List<Integer> gotoDefaults)
+        throws CompileError
+    {
+        doTypeCheck(expr);
+        expr = TypeChecker.stripPlusExpr(expr);
+        if (expr instanceof StringL) {
+            String label = ((StringL)expr).get();
+            bytecode.addAload(tmpVar);
+            bytecode.addLdc(label);
+            bytecode.addInvokevirtual(TypeChecker.jvmJavaLangString, "equals",
+                                      "(Ljava/lang/Object;)Z");
+            bytecode.addOpcode(IFEQ);
+            Integer pc = Integer.valueOf(bytecode.currentPc());
+            bytecode.addIndex(0);
+            gotoDefaults.add(pc);
+            return (int)label.hashCode();
+        }
+        throw new CompileError("bad case label");
     }
 
     private void atBreakStmnt(Stmnt st, boolean notCont)
@@ -577,7 +669,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
                         "sorry, not support labeled break or continue");
 
         bytecode.addOpcode(Opcode.GOTO);
-        Integer pc = new Integer(bytecode.currentPc());
+        Integer pc = Integer.valueOf(bytecode.currentPc());
         bytecode.addIndex(0);
         if (notCont)
             breakList.add(pc);
@@ -654,6 +746,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         bc.addOpcode(MONITORENTER);
 
         ReturnHook rh = new ReturnHook(this) {
+            @Override
             protected boolean doit(Bytecode b, int opcode) {
                 b.addAload(var);
                 b.addOpcode(MONITOREXIT);
@@ -693,7 +786,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
                 "sorry, cannot break/continue in synchronized block");
     }
 
-    private static int getListSize(ArrayList list) {
+    private static int getListSize(List<Integer>  list) {
         return list == null ? 0 : list.size();
     }
 
@@ -706,6 +799,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         return false;
     }
 
+    @Override
     public void atDeclarator(Declarator d) throws CompileError {
         d.setLocalVar(getMaxLocals());
         d.setClassName(resolveClassName(d.getClassName()));
@@ -727,10 +821,13 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         }
     }
 
+    @Override
     public abstract void atNewExpr(NewExpr n) throws CompileError;
 
+    @Override
     public abstract void atArrayInit(ArrayInit init) throws CompileError;
 
+    @Override
     public void atAssignExpr(AssignExpr expr) throws CompileError {
         atAssignExpr(expr, true);
     }
@@ -913,21 +1010,25 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         return false;
     }
 
+    @Override
     public void atCondExpr(CondExpr expr) throws CompileError {
-        booleanExpr(false, expr.condExpr());
-        int pc = bytecode.currentPc();
-        bytecode.addIndex(0);   // correct later
-        expr.thenExpr().accept(this);
-        int dim1 = arrayDim;
-        bytecode.addOpcode(Opcode.GOTO);
-        int pc2 = bytecode.currentPc();
-        bytecode.addIndex(0);
-        bytecode.write16bit(pc, bytecode.currentPc() - pc + 1);
-        expr.elseExpr().accept(this);
-        if (dim1 != arrayDim)
-            throw new CompileError("type mismatch in ?:");
+        if (booleanExpr(false, expr.condExpr()))
+            expr.elseExpr().accept(this);
+        else {
+            int pc = bytecode.currentPc();
+            bytecode.addIndex(0);   // correct later
+            expr.thenExpr().accept(this);
+            int dim1 = arrayDim;
+            bytecode.addOpcode(Opcode.GOTO);
+            int pc2 = bytecode.currentPc();
+            bytecode.addIndex(0);
+            bytecode.write16bit(pc, bytecode.currentPc() - pc + 1);
+            expr.elseExpr().accept(this);
+            if (dim1 != arrayDim)
+                throw new CompileError("type mismatch in ?:");
 
-        bytecode.write16bit(pc2, bytecode.currentPc() - pc2 + 1);
+            bytecode.write16bit(pc2, bytecode.currentPc() - pc2 + 1);
+        }
     }
 
     static final int[] binOp = {
@@ -953,6 +1054,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         return -1;
     }
 
+    @Override
     public void atBinExpr(BinExpr expr) throws CompileError {
         int token = expr.getOperator();
 
@@ -981,11 +1083,13 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         else {
             /* equation: &&, ||, ==, !=, <=, >=, <, >
             */
-            booleanExpr(true, expr);
-            bytecode.addIndex(7);
-            bytecode.addIconst(0);  // false
-            bytecode.addOpcode(Opcode.GOTO);
-            bytecode.addIndex(4);
+            if (!booleanExpr(true, expr)) {
+                bytecode.addIndex(7);
+                bytecode.addIconst(0);  // false
+                bytecode.addOpcode(Opcode.GOTO);
+                bytecode.addIndex(4);
+            }
+
             bytecode.addIconst(1);  // true
         }
     }
@@ -1087,9 +1191,10 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
     }
 
     /* Produces the opcode to branch if the condition is true.
-     * The oprand is not produced.
+     * The oprand (branch offset) is not produced.
      *
      * @return	true if the compiled code is GOTO (always branch).
+     * 			GOTO is not produced.
      */
     private boolean booleanExpr(boolean branchIf, ASTree expr)
         throws CompileError
@@ -1104,22 +1209,29 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
             compareExpr(branchIf, bexpr.getOperator(), type1, bexpr);
         }
         else if (op == '!')
-            booleanExpr(!branchIf, ((Expr)expr).oprand1());
+            return booleanExpr(!branchIf, ((Expr)expr).oprand1());
         else if ((isAndAnd = (op == ANDAND)) || op == OROR) {
             BinExpr bexpr = (BinExpr)expr;
-            booleanExpr(!isAndAnd, bexpr.oprand1());
-            int pc = bytecode.currentPc();
-            bytecode.addIndex(0);       // correct later
-
-            booleanExpr(isAndAnd, bexpr.oprand2());
-            bytecode.write16bit(pc, bytecode.currentPc() - pc + 3);
-            if (branchIf != isAndAnd) {
-                bytecode.addIndex(6);   // skip GOTO instruction
-                bytecode.addOpcode(Opcode.GOTO);
+            if (booleanExpr(!isAndAnd, bexpr.oprand1())) {
+                exprType = BOOLEAN;
+                arrayDim = 0;
+                return true;
             }
+            	int pc = bytecode.currentPc();
+            	bytecode.addIndex(0);       // correct later
+            	if (booleanExpr(isAndAnd, bexpr.oprand2()))
+            		bytecode.addOpcode(Opcode.GOTO);
+
+            	bytecode.write16bit(pc, bytecode.currentPc() - pc + 3);
+            	if (branchIf != isAndAnd) {
+            		bytecode.addIndex(6);   // skip GOTO instruction
+            		bytecode.addOpcode(Opcode.GOTO);
+            	}
         }
         else if (isAlwaysBranch(expr, branchIf)) {
-            bytecode.addOpcode(Opcode.GOTO);
+        	// Opcode.GOTO is not added here.  The caller must add it.
+            exprType = BOOLEAN;
+            arrayDim = 0;
             return true;	// always branch
         }
         else {                          // others
@@ -1134,7 +1246,6 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         arrayDim = 0;
         return false;
     }
-
 
     private static boolean isAlwaysBranch(ASTree expr, boolean branchIf) {
         if (expr instanceof Keyword) {
@@ -1175,8 +1286,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
 
         if (type1 == NULL)
             return exprType;
-        else
-            return type1;
+        return type1;
     }
 
     private static final int ifOp[] = { EQ, IF_ICMPEQ, IF_ICMPNE,
@@ -1358,6 +1468,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
             bytecode.addOpcode(op);
     }
 
+    @Override
     public void atCastExpr(CastExpr expr) throws CompileError {
         String cname = resolveClassName(expr.getClassName());
         String toClass = checkCastExpr(expr, cname);
@@ -1371,6 +1482,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
             bytecode.addCheckcast(toClass);
     }
 
+    @Override
     public void atInstanceOfExpr(InstanceOfExpr expr) throws CompileError {
         String cname = resolveClassName(expr.getClassName());
         String toClass = checkCastExpr(expr, cname);
@@ -1388,12 +1500,13 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         int type = expr.getType();
         oprand.accept(this);
         int srcType = exprType;
+        int srcDim = arrayDim;
         if (invalidDim(srcType, arrayDim, className, type, dim, name, true)
             || srcType == VOID || type == VOID)
             throw new CompileError(msg);
 
         if (type == CLASS) {
-            if (!isRefType(srcType))
+            if (!isRefType(srcType) && srcDim == 0)
                 throw new CompileError(msg);
 
             return toJvmArrayName(name, dim);
@@ -1410,7 +1523,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
     {
         if (srcType == destType)
             return;
-        
+
         int op, op2;
         int stype = typePrecedence(srcType);
         int dtype = typePrecedence(destType);
@@ -1442,6 +1555,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
                 bytecode.addOpcode(op2);
     }
 
+    @Override
     public void atExpr(Expr expr) throws CompileError {
         // array access, member access,
         // (unary) +, (unary) -, ++, --, !, ~
@@ -1450,7 +1564,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         ASTree oprand = expr.oprand1();
         if (token == '.') {
             String member = ((Symbol)expr.oprand2()).get();
-            if (member.equals("class"))                
+            if (member.equals("class"))
                 atClassObject(expr);  // .class
             else
                 atFieldRead(expr);
@@ -1467,11 +1581,13 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         else if (token == PLUSPLUS || token == MINUSMINUS)
             atPlusPlus(token, oprand, expr, true);
         else if (token == '!') {
-            booleanExpr(false, expr);
-            bytecode.addIndex(7);
-            bytecode.addIconst(1);
-            bytecode.addOpcode(Opcode.GOTO);
-            bytecode.addIndex(4);
+            if (!booleanExpr(false, expr)) {
+                bytecode.addIndex(7);
+                bytecode.addIconst(1);
+                bytecode.addOpcode(Opcode.GOTO);
+                bytecode.addIndex(4);
+            }
+
             bytecode.addIconst(0);
         }
         else if (token == CALL)         // method call
@@ -1525,6 +1641,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         throw new CompileError("invalid type for " + expr.getName());
     }
 
+    @Override
     public abstract void atCallExpr(CallExpr expr) throws CompileError;
 
     protected abstract void atFieldRead(ASTree expr) throws CompileError;
@@ -1714,7 +1831,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
                 if (doDup && isPost)
                     bytecode.addOpcode(DUP2);
 
-                bytecode.addLconst((long)1);
+                bytecode.addLconst(1);
                 bytecode.addOpcode(token == PLUSPLUS ? LADD : LSUB);
                 if (doDup && !isPost)
                     bytecode.addOpcode(DUP2);
@@ -1800,7 +1917,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
             exprType = INT;
         }
         else if (t == LONG) {
-            bytecode.addLconst((long)1);
+            bytecode.addLconst(1);
             bytecode.addOpcode(token == PLUSPLUS ? LADD : LSUB);
         }
         else if (t == FLOAT) {
@@ -1821,8 +1938,10 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
     protected abstract void atFieldPlusPlus(int token, boolean isPost,
                 ASTree oprand, Expr expr, boolean doDup) throws CompileError;
 
+    @Override
     public abstract void atMember(Member n) throws CompileError;
 
+    @Override
     public void atVariable(Variable v) throws CompileError {
         Declarator d = v.getDeclarator();
         exprType = d.getType();
@@ -1852,6 +1971,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
             }
     }
 
+    @Override
     public void atKeyword(Keyword k) throws CompileError {
         arrayDim = 0;
         int token = k.get();
@@ -1879,13 +1999,14 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
             if (token == THIS)
                 className = getThisName();
             else
-                className = getSuperName();             
+                className = getSuperName();
             break;
         default :
             fatal();
         }
     }
 
+    @Override
     public void atStringL(StringL s) throws CompileError {
         exprType = CLASS;
         arrayDim = 0;
@@ -1893,6 +2014,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         bytecode.addLdc(s.get());
     }
 
+    @Override
     public void atIntConst(IntConst i) throws CompileError {
         arrayDim = 0;
         long value = i.get();
@@ -1907,6 +2029,7 @@ public abstract class CodeGen extends Visitor implements Opcode, TokenId {
         }
     }
 
+    @Override
     public void atDoubleConst(DoubleConst d) throws CompileError {
         arrayDim = 0;
         if (d.getType() == DoubleConstant) {

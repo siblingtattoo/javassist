@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,11 +16,11 @@
 
 package javassist.tools.reflect;
 
-import java.lang.reflect.Method;
-import java.io.Serializable;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.Serializable;
+import java.lang.reflect.Method;
 
 /**
  * A runtime metaobject.
@@ -36,13 +37,16 @@ import java.io.ObjectOutputStream;
  * <p>To obtain a metaobject, calls <code>_getMetaobject()</code>
  * on a reflective object.  For example,
  *
- * <ul><pre>Metaobject m = ((Metalevel)reflectiveObject)._getMetaobject();
- * </pre></ul>
+ * <pre>
+ * Metaobject m = ((Metalevel)reflectiveObject)._getMetaobject();
+ * </pre>
  *
  * @see javassist.tools.reflect.ClassMetaobject
  * @see javassist.tools.reflect.Metalevel
  */
 public class Metaobject implements Serializable {
+    /** default serialVersionUID */
+    private static final long serialVersionUID = 1L;
     protected ClassMetaobject classmetaobject;
     protected Metalevel baseobject;
     protected Method[] methods;
@@ -136,7 +140,7 @@ public class Metaobject implements Serializable {
      * formal parameter types of the method specified
      * by <code>identifier</code>.
      */
-    public final Class[] getParameterTypes(int identifier) {
+    public final Class<?>[] getParameterTypes(int identifier) {
         return methods[identifier].getParameterTypes();
     }
 
@@ -144,7 +148,7 @@ public class Metaobject implements Serializable {
      * Returns a <code>Class</code> objects representing the
      * return type of the method specified by <code>identifier</code>.
      */
-    public final Class getReturnType(int identifier) {
+    public final Class<?> getReturnType(int identifier) {
         return methods[identifier].getReturnType();
     }
 
@@ -156,7 +160,7 @@ public class Metaobject implements Serializable {
      * <p>Every subclass of this class should redefine this method.
      */
     public Object trapFieldRead(String name) {
-        Class jc = getClassMetaobject().getJavaClass();
+        Class<?> jc = getClassMetaobject().getJavaClass();
         try {
             return jc.getField(name).get(getObject());
         }
@@ -176,7 +180,7 @@ public class Metaobject implements Serializable {
      * <p>Every subclass of this class should redefine this method.
      */
     public void trapFieldWrite(String name, Object value) {
-        Class jc = getClassMetaobject().getJavaClass();
+        Class<?> jc = getClassMetaobject().getJavaClass();
         try {
             jc.getField(name).set(getObject(), value);
         }
@@ -198,7 +202,8 @@ public class Metaobject implements Serializable {
      * <p>Note: this method is not invoked if the base-level method
      * is invoked by a constructor in the super class.  For example,
      *
-     * <ul><pre>abstract class A {
+     * <pre>
+     * abstract class A {
      *   abstract void initialize();
      *   A() {
      *       initialize();    // not intercepted
@@ -211,7 +216,7 @@ public class Metaobject implements Serializable {
      *       super();
      *       initialize();    // intercepted
      *   }
-     * }</pre></ul>
+     * }</pre>
      *
      * <p>if an instance of B is created,
      * the invocation of initialize() in B is intercepted only once.

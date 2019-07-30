@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2010 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -62,13 +63,14 @@ public class ProxyObjectInputStream extends ObjectInputStream
         }
     }
 
+    @Override
     protected ObjectStreamClass readClassDescriptor() throws IOException, ClassNotFoundException {
         boolean isProxy = readBoolean();
         if (isProxy) {
             String name = (String)readObject();
-            Class superClass = loader.loadClass(name);
+            Class<?> superClass = loader.loadClass(name);
             int length = readInt();
-            Class[] interfaces = new Class[length];
+            Class<?>[] interfaces = new Class[length];
             for (int i = 0; i < length; i++) {
                 name = (String)readObject();
                 interfaces[i] = loader.loadClass(name);
@@ -83,11 +85,10 @@ public class ProxyObjectInputStream extends ObjectInputStream
             factory.setUseWriteReplace(false);
             factory.setSuperclass(superClass);
             factory.setInterfaces(interfaces);
-            Class proxyClass = factory.createClass(signature);
+            Class<?> proxyClass = factory.createClass(signature);
             return ObjectStreamClass.lookup(proxyClass);
-        } else {
-            return super.readClassDescriptor();
         }
+        return super.readClassDescriptor();
     }
 
     /**

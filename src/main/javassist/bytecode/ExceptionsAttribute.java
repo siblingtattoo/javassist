@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -41,7 +42,7 @@ public class ExceptionsAttribute extends AttributeInfo {
      * @param src               source attribute.
      */
     private ExceptionsAttribute(ConstPool cp, ExceptionsAttribute src,
-                                Map classnames) {
+                                Map<String,String> classnames) {
         super(cp, tag);
         copyFrom(src, classnames);
     }
@@ -66,7 +67,8 @@ public class ExceptionsAttribute extends AttributeInfo {
      * @param classnames        pairs of replaced and substituted
      *                          class names.  It can be <code>null</code>.
      */
-    public AttributeInfo copy(ConstPool newCp, Map classnames) {
+    @Override
+    public AttributeInfo copy(ConstPool newCp, Map<String,String> classnames) {
         return new ExceptionsAttribute(newCp, this, classnames);
     }
 
@@ -78,7 +80,7 @@ public class ExceptionsAttribute extends AttributeInfo {
      * @param classnames        pairs of replaced and substituted
      *                          class names.
      */
-    private void copyFrom(ExceptionsAttribute srcAttr, Map classnames) {
+    private void copyFrom(ExceptionsAttribute srcAttr, Map<String,String> classnames) {
         ConstPool srcCp = srcAttr.constPool;
         ConstPool destCp = this.constPool;
         byte[] src = srcAttr.info;

@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -16,8 +17,8 @@
 package javassist.bytecode;
 
 import java.io.DataInputStream;
-import java.util.Map;
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * <code>InnerClasses_attribute</code>.
@@ -63,15 +64,16 @@ public class InnerClassesAttribute extends AttributeInfo {
     /**
      * Returns the class name indicated
      * by <code>classes[nth].inner_class_info_index</code>.
+     * The class name is fully-qualified and separated by dot.
      *
      * @return null or the class name.
+     * @see ConstPool#getClassInfo(int)
      */
     public String innerClass(int nth) {
         int i = innerClassIndex(nth);
         if (i == 0)
             return null;
-        else
-            return constPool.getClassInfo(i);
+        return constPool.getClassInfo(i);
     }
 
     /**
@@ -99,8 +101,7 @@ public class InnerClassesAttribute extends AttributeInfo {
         int i = outerClassIndex(nth);
         if (i == 0)
             return null;
-        else
-            return constPool.getClassInfo(i);
+        return constPool.getClassInfo(i);
     }
 
     /**
@@ -128,8 +129,7 @@ public class InnerClassesAttribute extends AttributeInfo {
         int i = innerNameIndex(nth);
         if (i == 0)
             return null;
-        else
-            return constPool.getUtf8Info(i);
+        return constPool.getUtf8Info(i);
     }
 
     /**
@@ -153,6 +153,22 @@ public class InnerClassesAttribute extends AttributeInfo {
      */
     public void setAccessFlags(int nth, int flags) {
         ByteArray.write16bit(flags, get(), nth * 8 + 8);
+    }
+
+    /**
+     * Finds the entry for the given inner class.
+     *
+     * @param name      the fully-qualified class name separated by dot and $.
+     * @return the index or -1 if not found.
+     * @since 3.22
+     */
+    public int find(String name) {
+        int n = tableLength();
+        for (int i = 0; i < n; i++)
+            if (name.equals(innerClass(i)))
+                return i;
+
+        return -1;
     }
 
     /**
@@ -197,6 +213,40 @@ public class InnerClassesAttribute extends AttributeInfo {
     }
 
     /**
+     * Removes the {@code nth} entry.  It does not eliminate
+     * constant pool items that the removed entry refers to.
+     * {@link ClassFile#compact()} should be executed to remove
+     * these unnecessary items. 
+     *
+     * @param nth       0, 1, 2, ...
+     * @return  the number of items after the removal.
+     * @see ClassFile#compact()
+     */
+    public int remove(int nth) {
+        byte[] data = get();
+        int len = data.length;
+        if (len < 10)
+            return 0;
+
+        int n = ByteArray.readU16bit(data, 0);
+        int nthPos = 2 + nth * 8;
+        if (n <= nth)
+            return n;
+
+        byte[] newData = new byte[len - 8];
+        ByteArray.write16bit(n - 1, newData, 0);
+        int i = 2, j = 2;
+        while (i < len)
+            if (i == nthPos)
+                i += 8;
+            else
+                newData[j++] = data[i++];
+
+        set(newData);
+        return n - 1;
+    }
+
+    /**
      * Makes a copy.  Class names are replaced according to the
      * given <code>Map</code> object.
      *
@@ -204,7 +254,8 @@ public class InnerClassesAttribute extends AttributeInfo {
      * @param classnames        pairs of replaced and substituted
      *                          class names.
      */
-    public AttributeInfo copy(ConstPool newCp, Map classnames) {
+    @Override
+    public AttributeInfo copy(ConstPool newCp, Map<String,String> classnames) {
         byte[] src = get();
         byte[] dest = new byte[src.length];
         ConstPool cp = getConstPool();

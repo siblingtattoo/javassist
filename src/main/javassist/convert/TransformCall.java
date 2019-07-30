@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,12 +16,15 @@
 
 package javassist.convert;
 
+import javassist.ClassPool;
 import javassist.CtClass;
 import javassist.CtMethod;
-import javassist.ClassPool;
 import javassist.Modifier;
 import javassist.NotFoundException;
-import javassist.bytecode.*;
+import javassist.bytecode.BadBytecode;
+import javassist.bytecode.CodeAttribute;
+import javassist.bytecode.CodeIterator;
+import javassist.bytecode.ConstPool;
 
 public class TransformCall extends Transformer {
     protected String classname, methodname, methodDescriptor;
@@ -50,6 +54,7 @@ public class TransformCall extends Transformer {
         newMethodIsPrivate = Modifier.isPrivate(substMethod.getModifiers());
     }
 
+    @Override
     public void initialize(ConstPool cp, CodeAttribute attr) {
         if (constPool != cp)
             newIndex = 0;
@@ -62,6 +67,7 @@ public class TransformCall extends Transformer {
      * by <code>classname</code>.   This method transforms the instruction
      * in that case unless the subclass overrides the target method.
      */
+    @Override
     public int transform(CtClass clazz, int pos, CodeIterator iterator,
                          ConstPool cp) throws BadBytecode
     {

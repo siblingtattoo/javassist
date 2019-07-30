@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -22,6 +23,8 @@ import javassist.compiler.CompileError;
  * The right subtree must be an ASTList object or null.
  */
 public class ASTList extends ASTree {
+    /** default serialVersionUID */
+    private static final long serialVersionUID = 1L;
     private ASTree left;
     private ASTList right;
 
@@ -39,12 +42,16 @@ public class ASTList extends ASTree {
         return new ASTList(e1, new ASTList(e2, new ASTList(e3)));
     }
 
+    @Override
     public ASTree getLeft() { return left; }
 
+    @Override
     public ASTree getRight() { return right; }
 
+    @Override
     public void setLeft(ASTree _left) { left = _left; }
 
+    @Override
     public void setRight(ASTree _right) {
         right = (ASTList)_right;
     }
@@ -67,8 +74,10 @@ public class ASTList extends ASTree {
         right = _tail;
     }
 
+    @Override
     public void accept(Visitor v) throws CompileError { v.atASTList(this); }
 
+    @Override
     public String toString() {
         StringBuffer sbuf = new StringBuffer();
         sbuf.append("(<");
@@ -147,13 +156,11 @@ public class ASTList extends ASTree {
     public static ASTList concat(ASTList a, ASTList b) {
         if (a == null)
             return b;
-        else {
-            ASTList list = a;
-            while (list.right != null)
-                list = list.right;
+        ASTList list = a;
+        while (list.right != null)
+            list = list.right;
 
-            list.right = b;
-            return a;
-        }
+        list.right = b;
+        return a;
     }
 }

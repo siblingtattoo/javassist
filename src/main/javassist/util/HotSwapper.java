@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,12 +16,25 @@
 
 package javassist.util;
 
-import com.sun.jdi.*;
-import com.sun.jdi.connect.*;
-import com.sun.jdi.event.*;
-import com.sun.jdi.request.*;
-import java.io.*;
-import java.util.*;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.sun.jdi.Bootstrap;
+import com.sun.jdi.ReferenceType;
+import com.sun.jdi.VirtualMachine;
+import com.sun.jdi.connect.AttachingConnector;
+import com.sun.jdi.connect.Connector;
+import com.sun.jdi.connect.IllegalConnectorArgumentsException;
+import com.sun.jdi.event.Event;
+import com.sun.jdi.event.EventIterator;
+import com.sun.jdi.event.EventQueue;
+import com.sun.jdi.event.EventSet;
+import com.sun.jdi.event.MethodEntryEvent;
+import com.sun.jdi.request.EventRequest;
+import com.sun.jdi.request.EventRequestManager;
+import com.sun.jdi.request.MethodEntryRequest;
 
 class Trigger {
     void doSwap() {}
@@ -28,7 +42,7 @@ class Trigger {
 
 /**
  * A utility class for dynamically reloading a class by
- * the Java Platform Debugger Architecture (JPDA), or <it>HotSwap</code>.
+ * the Java Platform Debugger Architecture (JPDA), or <i>HotSwap</i>.
  * It works only with JDK 1.4 and later.
  *
  * <p><b>Note:</b> The new definition of the reloaded class must declare
@@ -39,12 +53,10 @@ class Trigger {
  * <p>To use this class, the JVM must be launched with the following
  * command line options:
  *
- * <ul>
  * <p>For Java 1.4,<br>
  * <pre>java -Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=8000</pre>
  * <p>For Java 5,<br>
  * <pre>java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8000</pre>
- * </ul>
  *
  * <p>Note that 8000 is the port number used by <code>HotSwapper</code>.
  * Any port number can be specified.  Since <code>HotSwapper</code> does not
@@ -56,12 +68,12 @@ class Trigger {
  *
  * <p>Using <code>HotSwapper</code> is easy.  See the following example:
  *
- * <ul><pre>
+ * <pre>
  * CtClass clazz = ...
  * byte[] classFile = clazz.toBytecode();
  * HotSwapper hs = new HostSwapper(8000);  // 8000 is a port number.
  * hs.reload("Test", classFile);
- * </pre></ul>
+ * </pre>
  *
  * <p><code>reload()</code>
  * first unload the <code>Test</code> class and load a new version of
@@ -71,12 +83,17 @@ class Trigger {
  * repatedly call <code>reload()</code> on the same <code>HotSwapper</code>
  * object so that they can reload a number of classes.
  *
+ * <p>{@code HotSwap} depends on the debug agent to perform hot-swapping
+ * but it is reported that the debug agent is buggy under massively multithreaded
+ * environments.  If you encounter a problem, try {@link HotSwapAgent}.
+ *
  * @since 3.1
+ * @see HotSwapAgent
  */
 public class HotSwapper {
     private VirtualMachine jvm;
     private MethodEntryRequest request;
-    private Map newClassFiles;
+    private Map<ReferenceType,byte[]> newClassFiles;
 
     private Trigger trigger;
 
@@ -109,23 +126,20 @@ public class HotSwapper {
         AttachingConnector connector
             = (AttachingConnector)findConnector("com.sun.jdi.SocketAttach");
 
-        Map arguments = connector.defaultArguments();
-        ((Connector.Argument)arguments.get("hostname")).setValue(HOST_NAME);
-        ((Connector.Argument)arguments.get("port")).setValue(port);
+        Map<String,Connector.Argument> arguments = connector.defaultArguments();
+        arguments.get("hostname").setValue(HOST_NAME);
+        arguments.get("port").setValue(port);
         jvm = connector.attach(arguments);
         EventRequestManager manager = jvm.eventRequestManager();
         request = methodEntryRequests(manager, TRIGGER_NAME);
     }
 
     private Connector findConnector(String connector) throws IOException {
-        List connectors = Bootstrap.virtualMachineManager().allConnectors();
-        Iterator iter = connectors.iterator();
-        while (iter.hasNext()) {
-            Connector con = (Connector)iter.next();
-            if (con.name().equals(connector)) {
+        List<Connector> connectors = Bootstrap.virtualMachineManager().allConnectors();
+
+        for (Connector con:connectors)
+            if (con.name().equals(connector))
                 return con;
-            }
-        }
 
         throw new IOException("Not found: " + connector);
     }
@@ -141,6 +155,7 @@ public class HotSwapper {
 
     /* Stops triggering a hotswapper when reload() is called.
      */
+    @SuppressWarnings("unused")
     private void deleteEventRequest(EventRequestManager manager,
                                     MethodEntryRequest request) {
         manager.deleteEventRequest(request);
@@ -154,7 +169,7 @@ public class HotSwapper {
      */
     public void reload(String className, byte[] classFile) {
         ReferenceType classtype = toRefType(className);
-        Map map = new HashMap();
+        Map<ReferenceType,byte[]> map = new HashMap<ReferenceType,byte[]>();
         map.put(classtype, classFile);
         reload2(map, className);
     }
@@ -167,14 +182,11 @@ public class HotSwapper {
      *				is <code>String</code> and the type of the
      *				class files is <code>byte[]</code>.
      */
-    public void reload(Map classFiles) {
-        Set set = classFiles.entrySet();
-        Iterator it = set.iterator();
-        Map map = new HashMap();
+    public void reload(Map<String,byte[]> classFiles) {
+        Map<ReferenceType,byte[]> map = new HashMap<ReferenceType,byte[]>();
         String className = null;
-        while (it.hasNext()) {
-            Map.Entry e = (Map.Entry)it.next();
-            className = (String)e.getKey();
+        for (Map.Entry<String,byte[]> e:classFiles.entrySet()) {
+            className = e.getKey();
             map.put(toRefType(className), e.getValue());
         }
 
@@ -183,21 +195,20 @@ public class HotSwapper {
     }
 
     private ReferenceType toRefType(String className) {
-        List list = jvm.classesByName(className);
+        List<ReferenceType> list = jvm.classesByName(className);
         if (list == null || list.isEmpty())
-            throw new RuntimeException("no such a class: " + className);
-        else
-            return (ReferenceType)list.get(0);
+            throw new RuntimeException("no such class: " + className);
+        return list.get(0);
     }
 
-    private void reload2(Map map, String msg) {
+    private void reload2(Map<ReferenceType,byte[]> map, String msg) {
         synchronized (trigger) {
             startDaemon();
             newClassFiles = map;
             request.enable();
             trigger.doSwap();
             request.disable();
-            Map ncf = newClassFiles;
+            Map<ReferenceType,byte[]> ncf = newClassFiles;
             if (ncf != null) {
                 newClassFiles = null;
                 throw new RuntimeException("failed to reload: " + msg);
@@ -212,6 +223,7 @@ public class HotSwapper {
                 e.printStackTrace(System.err);
             }
 
+            @Override
             public void run() {
                 EventSet events = null;
                 try {
@@ -245,7 +257,7 @@ public class HotSwapper {
     }
 
     void hotswap() {
-        Map map = newClassFiles;
+        Map<ReferenceType,byte[]> map = newClassFiles;
         jvm.redefineClasses(map);
         newClassFiles = null;
     }

@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -18,9 +19,8 @@ package javassist.bytecode;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.List;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -31,6 +31,7 @@ import java.util.Map;
  * use <code>CodeIterator</code>.
  *
  * @see CodeIterator
+ * @see #iterator()
  */
 public class CodeAttribute extends AttributeInfo implements Opcode {
     /**
@@ -43,7 +44,7 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
     private int maxStack;
     private int maxLocals;
     private ExceptionTable exceptions;
-    private ArrayList attributes;
+    private List<AttributeInfo> attributes;
 
     /**
      * Constructs a <code>Code_attribute</code>.
@@ -62,7 +63,7 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
         maxLocals = locals;
         info = code;
         exceptions = etable;
-        attributes = new ArrayList();
+        attributes = new ArrayList<AttributeInfo>();
     }
 
     /**
@@ -74,7 +75,7 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
      * @param classnames        pairs of replaced and substituted
      *                          class names.
      */
-    private CodeAttribute(ConstPool cp, CodeAttribute src, Map classnames)
+    private CodeAttribute(ConstPool cp, CodeAttribute src, Map<String,String> classnames)
         throws BadBytecode
     {
         super(cp, tag);
@@ -82,11 +83,11 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
         maxStack = src.getMaxStack();
         maxLocals = src.getMaxLocals();
         exceptions = src.getExceptionTable().copy(cp, classnames);
-        attributes = new ArrayList();
-        List src_attr = src.getAttributes();
+        attributes = new ArrayList<AttributeInfo>();
+        List<AttributeInfo> src_attr = src.getAttributes();
         int num = src_attr.size();
         for (int i = 0; i < num; ++i) {
-            AttributeInfo ai = (AttributeInfo)src_attr.get(i);
+            AttributeInfo ai = src_attr.get(i);
             attributes.add(ai.copy(cp, classnames));
         }
 
@@ -97,6 +98,7 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
         throws IOException
     {
         super(cp, name_id, (byte[])null);
+        @SuppressWarnings("unused")
         int attr_len = in.readInt();
 
         maxStack = in.readUnsignedShort();
@@ -108,7 +110,7 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
 
         exceptions = new ExceptionTable(cp, in);
 
-        attributes = new ArrayList();
+        attributes = new ArrayList<AttributeInfo>();
         int num = in.readUnsignedShort();
         for (int i = 0; i < num; ++i)
             attributes.add(AttributeInfo.read(cp, in));
@@ -128,7 +130,8 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
      *
      * @return <code>CodeAttribute</code> object.
      */
-    public AttributeInfo copy(ConstPool newCp, Map classnames)
+    @Override
+    public AttributeInfo copy(ConstPool newCp, Map<String,String> classnames)
         throws RuntimeCopyException
     {
         try {
@@ -144,6 +147,9 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
      * in <code>CodeAttribute</code>.
      */
     public static class RuntimeCopyException extends RuntimeException {
+        /** default serialVersionUID */
+        private static final long serialVersionUID = 1L;
+
         /**
          * Constructs an exception.
          */
@@ -157,11 +163,13 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
      * structure.
      * The returned value is <code>attribute_length + 6</code>.
      */
+    @Override
     public int length() {
         return 18 + info.length + exceptions.size() * 8
                + AttributeInfo.getLength(attributes);
     }
 
+    @Override
     void write(DataOutputStream out) throws IOException {
         out.writeShort(name);           // attribute_name_index
         out.writeInt(length() - 6);     // attribute_length
@@ -179,7 +187,8 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
      *
      * @throws java.lang.UnsupportedOperationException  always thrown.
      */
-    public byte[] get() { 
+    @Override
+    public byte[] get() {
         throw new UnsupportedOperationException("CodeAttribute.get()");
     }
 
@@ -188,16 +197,24 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
      *
      * @throws java.lang.UnsupportedOperationException  always thrown.
      */
+    @Override
     public void set(byte[] newinfo) {
         throw new UnsupportedOperationException("CodeAttribute.set()");
     }
 
+    @Override
     void renameClass(String oldname, String newname) {
         AttributeInfo.renameClass(attributes, oldname, newname);
     }
 
-    void renameClass(Map classnames) {
+    @Override
+    void renameClass(Map<String,String> classnames) {
         AttributeInfo.renameClass(attributes, classnames);
+    }
+
+    @Override
+    void getRefClasses(Map<String,String> classnames) {
+        AttributeInfo.getRefClasses(attributes, classnames);
     }
 
     /**
@@ -292,7 +309,7 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
      *
      * @see AttributeInfo
      */
-    public List getAttributes() { return attributes; }
+    public List<AttributeInfo> getAttributes() { return attributes; }
 
     /**
      * Returns the attribute with the specified name.
@@ -337,7 +354,7 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
     /**
      * Copies code.
      */
-    private byte[] copyCode(ConstPool destCp, Map classnames,
+    private byte[] copyCode(ConstPool destCp, Map<String,String> classnames,
                             ExceptionTable etable, CodeAttribute destCa)
         throws BadBytecode
     {
@@ -351,7 +368,7 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
 
     private static LdcEntry copyCode(byte[] code, int beginPos, int endPos,
                                      ConstPool srcCp, byte[] newcode,
-                                     ConstPool destCp, Map classnameMap)
+                                     ConstPool destCp, Map<String,String> classnameMap)
         throws BadBytecode
     {
         int i2, index;
@@ -399,6 +416,12 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
                 newcode[i + 3] = code[i + 3];
                 newcode[i + 4] = code[i + 4];
                 break;
+            case INVOKEDYNAMIC :
+                copyConstPoolInfo(i + 1, code, srcCp, newcode, destCp,
+                        classnameMap);
+                newcode[i + 3] = 0;
+                newcode[i + 4] = 0;
+                break;
             case MULTIANEWARRAY :
                 copyConstPoolInfo(i + 1, code, srcCp, newcode, destCp,
                                   classnameMap);
@@ -417,7 +440,7 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
 
     private static void copyConstPoolInfo(int i, byte[] code, ConstPool srcCp,
                                           byte[] newcode, ConstPool destCp,
-                                          Map classnameMap) {
+                                          Map<String,String> classnameMap) {
         int index = ((code[i] & 0xff) << 8) | (code[i + 1] & 0xff);
         index = srcCp.copy(index, destCp, classnameMap);
         newcode[i] = (byte)(index >> 8);
@@ -457,6 +480,7 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
      * Changes the index numbers of the local variables
      * to append a new parameter.
      * This method does not update <code>LocalVariableAttribute</code>,
+     * <code>LocalVariableTypeAttribute</code>,
      * <code>StackMapTable</code>, or <code>StackMap</code>.
      * These attributes must be explicitly updated.
      *
@@ -464,6 +488,7 @@ public class CodeAttribute extends AttributeInfo implements Opcode {
      * @param size         the type size of the new parameter (1 or 2).
      *
      * @see LocalVariableAttribute#shiftIndex(int, int)
+     * @see LocalVariableTypeAttribute#shiftIndex(int, int)
      * @see StackMapTable#insertLocal(int, int, int)
      * @see StackMap#insertLocal(int, int, int)
      */

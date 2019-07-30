@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba, and others. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -33,6 +34,7 @@ public class MultiArrayType extends Type {
         this.dims = dims;
     }
 
+    @Override
     public CtClass getCtClass() {
         CtClass clazz = component.getCtClass();
         if (clazz == null)
@@ -51,30 +53,37 @@ public class MultiArrayType extends Type {
         }
     }
 
+    @Override
     boolean popChanged() {
         return component.popChanged();
     }
 
+    @Override
     public int getDimensions() {
         return dims;
     }
 
+    @Override
     public Type getComponent() {
        return dims == 1 ? (Type)component : new MultiArrayType(component, dims - 1);
     }
 
+    @Override
     public int getSize() {
         return 1;
     }
 
+    @Override
     public boolean isArray() {
         return true;
     }
 
+    @Override
     public boolean isAssignableFrom(Type type) {
         throw new UnsupportedOperationException("Not implemented");
     }
 
+    @Override
     public boolean isReference() {
        return true;
     }
@@ -114,6 +123,13 @@ public class MultiArrayType extends Type {
         return component.isAssignableTo(typeRoot);
     }
 
+
+    @Override
+    public int hashCode() {
+        return component.hashCode() + dims;
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (! (o instanceof MultiArrayType))
             return false;
@@ -122,6 +138,7 @@ public class MultiArrayType extends Type {
         return component.equals(multi.component) && dims == multi.dims;
     }
 
+    @Override
     public String toString() {
         // follows the same detailed formating scheme as component
         return arrayName(component.toString(), dims);

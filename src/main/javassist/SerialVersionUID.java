@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,12 +16,17 @@
 
 package javassist;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.lang.reflect.Modifier;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.Comparator;
 
-import javassist.bytecode.*;
-import java.util.*;
-import java.security.*;
+import javassist.bytecode.ClassFile;
+import javassist.bytecode.Descriptor;
 
 /**
  * Utility for calculating serialVersionUIDs for Serializable classes.
@@ -69,8 +75,10 @@ public class SerialVersionUID {
     /**
      * Calculate default value. See Java Serialization Specification, Stream
      * Unique Identifiers.
+     *
+     * @since 3.20
      */
-    static long calculateDefault(CtClass clazz)
+    public static long calculateDefault(CtClass clazz)
         throws CannotCompileException
     {
         try {
@@ -105,16 +113,15 @@ public class SerialVersionUID {
             
             // fields.
             CtField[] fields = clazz.getDeclaredFields();
-            Arrays.sort(fields, new Comparator() {
-                public int compare(Object o1, Object o2) {
-                    CtField field1 = (CtField)o1;
-                    CtField field2 = (CtField)o2;
+            Arrays.sort(fields, new Comparator<CtField>() {
+                @Override
+                public int compare(CtField field1, CtField field2) {
                     return field1.getName().compareTo(field2.getName());
                 }
             });
 
             for (int i = 0; i < fields.length; i++) {
-                CtField field = (CtField) fields[i]; 
+                CtField field = fields[i]; 
                 int mods = field.getModifiers();
                 if (((mods & Modifier.PRIVATE) == 0) ||
                     ((mods & (Modifier.STATIC | Modifier.TRANSIENT)) == 0)) {
@@ -133,10 +140,9 @@ public class SerialVersionUID {
 
             // constructors.
             CtConstructor[] constructors = clazz.getDeclaredConstructors();
-            Arrays.sort(constructors, new Comparator() {
-                public int compare(Object o1, Object o2) {
-                    CtConstructor c1 = (CtConstructor)o1;
-                    CtConstructor c2 = (CtConstructor)o2;
+            Arrays.sort(constructors, new Comparator<CtConstructor>() {
+                @Override
+                public int compare(CtConstructor c1, CtConstructor c2) {
                     return c1.getMethodInfo2().getDescriptor().compareTo(
                                         c2.getMethodInfo2().getDescriptor());
                 }
@@ -154,10 +160,9 @@ public class SerialVersionUID {
             }
 
             // methods.
-            Arrays.sort(methods, new Comparator() {
-                public int compare(Object o1, Object o2) {
-                    CtMethod m1 = (CtMethod)o1;
-                    CtMethod m2 = (CtMethod)o2;
+            Arrays.sort(methods, new Comparator<CtMethod>() {
+                @Override
+                public int compare(CtMethod m1, CtMethod m2) {
                     int value = m1.getName().compareTo(m2.getName());
                     if (value == 0)
                         value = m1.getMethodInfo2().getDescriptor()

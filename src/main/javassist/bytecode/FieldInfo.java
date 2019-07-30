@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -18,11 +19,20 @@ package javassist.bytecode;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * <code>field_info</code> structure.
+ *
+ * <p>The following code adds a public field <code>width</code>
+ * of <code>int</code> type:
+ * <blockquote><pre>
+ * ClassFile cf = ...
+ * FieldInfo f = new FieldInfo(cf.getConstPool(), "width", "I");
+ * f.setAccessFlags(AccessFlag.PUBLIC);
+ * cf.addField(f);
+ * </pre></blockquote>
  *
  * @see javassist.CtField#getFieldInfo()
  */
@@ -33,7 +43,7 @@ public final class FieldInfo {
     String cachedName;
     String cachedType;
     int descriptor;
-    ArrayList attribute;       // may be null.
+    List<AttributeInfo> attribute;       // may be null.
 
     private FieldInfo(ConstPool cp) {
         constPool = cp;
@@ -65,6 +75,7 @@ public final class FieldInfo {
     /**
      * Returns a string representation of the object.
      */
+    @Override
     public String toString() {
         return getName() + " " + getDescriptor();
     }
@@ -85,7 +96,7 @@ public final class FieldInfo {
     }
 
     void prune(ConstPool cp) {
-        ArrayList newAttributes = new ArrayList();
+        List<AttributeInfo> newAttributes = new ArrayList<AttributeInfo>();
         AttributeInfo invisibleAnnotations
             = getAttribute(AnnotationsAttribute.invisibleTag);
         if (invisibleAnnotations != null) {
@@ -100,13 +111,13 @@ public final class FieldInfo {
             newAttributes.add(visibleAnnotations);
         }
 
-        AttributeInfo signature 
+        AttributeInfo signature
             = getAttribute(SignatureAttribute.tag);
         if (signature != null) {
             signature = signature.copy(cp, null);
             newAttributes.add(signature);
         }
-        
+
         int index = getConstantValue();
         if (index != 0) {
             index = constPool.copy(index, cp, null);
@@ -196,8 +207,7 @@ public final class FieldInfo {
             = (ConstantAttribute)getAttribute(ConstantAttribute.tag);
         if (attr == null)
             return 0;
-        else
-            return attr.getConstantValue();
+        return attr.getConstantValue();
     }
 
     /**
@@ -210,9 +220,9 @@ public final class FieldInfo {
      * @return a list of <code>AttributeInfo</code> objects.
      * @see AttributeInfo
      */
-    public List getAttributes() {
+    public List<AttributeInfo> getAttributes() {
         if (attribute == null)
-            attribute = new ArrayList();
+            attribute = new ArrayList<AttributeInfo>();
 
         return attribute;
     }
@@ -221,11 +231,27 @@ public final class FieldInfo {
      * Returns the attribute with the specified name.
      * It returns null if the specified attribute is not found.
      *
+     * <p>An attribute name can be obtained by, for example,
+     * {@link AnnotationsAttribute#visibleTag} or
+     * {@link AnnotationsAttribute#invisibleTag}. 
+     * </p>
+     * 
      * @param name      attribute name
      * @see #getAttributes()
      */
     public AttributeInfo getAttribute(String name) {
         return AttributeInfo.lookup(attribute, name);
+    }
+
+    /**
+     * Removes an attribute with the specified name.
+     *
+     * @param name      attribute name.
+     * @return          the removed attribute or null.
+     * @since 3.21
+     */
+    public AttributeInfo removeAttribute(String name) {
+        return AttributeInfo.remove(attribute, name);
     }
 
     /**
@@ -236,7 +262,7 @@ public final class FieldInfo {
      */
     public void addAttribute(AttributeInfo info) {
         if (attribute == null)
-            attribute = new ArrayList();
+            attribute = new ArrayList<AttributeInfo>();
 
         AttributeInfo.remove(attribute, info.getName());
         attribute.add(info);
@@ -247,7 +273,7 @@ public final class FieldInfo {
         name = in.readUnsignedShort();
         descriptor = in.readUnsignedShort();
         int n = in.readUnsignedShort();
-        attribute = new ArrayList();
+        attribute = new ArrayList<AttributeInfo>();
         for (int i = 0; i < n; ++i)
             attribute.add(AttributeInfo.read(constPool, in));
     }

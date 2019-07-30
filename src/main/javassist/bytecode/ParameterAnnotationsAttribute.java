@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -15,14 +16,17 @@
 
 package javassist.bytecode;
 
-import java.util.Map;
-import java.io.IOException;
-import java.io.DataInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import javassist.bytecode.AnnotationsAttribute.Copier;
 import javassist.bytecode.AnnotationsAttribute.Parser;
-import javassist.bytecode.annotation.*;
+import javassist.bytecode.AnnotationsAttribute.Renamer;
+import javassist.bytecode.annotation.Annotation;
+import javassist.bytecode.annotation.AnnotationsWriter;
 
 /**
  * A class representing <code>RuntimeVisibleAnnotations_attribute</code> and
@@ -101,7 +105,8 @@ public class ParameterAnnotationsAttribute extends AttributeInfo {
     /**
      * Copies this attribute and returns a new copy.
      */
-    public AttributeInfo copy(ConstPool newCp, Map classnames) {
+    @Override
+    public AttributeInfo copy(ConstPool newCp, Map<String,String> classnames) {
         Copier copier = new Copier(info, constPool, newCp, classnames);
         try {
             copier.parameters();
@@ -147,10 +152,8 @@ public class ParameterAnnotationsAttribute extends AttributeInfo {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         AnnotationsWriter writer = new AnnotationsWriter(output, constPool);
         try {
-            int n = params.length;
-            writer.numParameters(n);
-            for (int i = 0; i < n; ++i) {
-                Annotation[] anno = params[i];
+            writer.numParameters(params.length);
+            for (Annotation[] anno:params) {
                 writer.numAnnotations(anno.length);
                 for (int j = 0; j < anno.length; ++j)
                     anno[j].write(writer);
@@ -163,5 +166,46 @@ public class ParameterAnnotationsAttribute extends AttributeInfo {
         }
 
         set(output.toByteArray());
+    }
+
+    /**
+     * @param oldname       a JVM class name.
+     * @param newname       a JVM class name.
+     */
+    @Override
+    void renameClass(String oldname, String newname) {
+        Map<String,String> map = new HashMap<String,String>();
+        map.put(oldname, newname);
+        renameClass(map);
+    }
+
+    @Override
+    void renameClass(Map<String,String> classnames) {
+        Renamer renamer = new Renamer(info, getConstPool(), classnames);
+        try {
+            renamer.parameters();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    void getRefClasses(Map<String,String> classnames) { renameClass(classnames); }
+
+    /**
+     * Returns a string representation of this object.
+     */
+    @Override
+    public String toString() {
+        Annotation[][] aa = getAnnotations();
+        StringBuilder sbuf = new StringBuilder();
+        for (Annotation[] a : aa) {
+            for (Annotation i : a)
+                sbuf.append(i.toString()).append(" ");
+
+            sbuf.append(", ");
+        }
+
+        return sbuf.toString().replaceAll(" (?=,)|, $","");
     }
 }

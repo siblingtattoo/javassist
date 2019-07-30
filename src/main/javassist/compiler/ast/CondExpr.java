@@ -1,11 +1,12 @@
 /*
  * Javassist, a Java-bytecode translator toolkit.
- * Copyright (C) 1999-2007 Shigeru Chiba. All Rights Reserved.
+ * Copyright (C) 1999- Shigeru Chiba. All Rights Reserved.
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
  * the License.  Alternatively, the contents of this file may be used under
- * the terms of the GNU Lesser General Public License Version 2.1 or later.
+ * the terms of the GNU Lesser General Public License Version 2.1 or later,
+ * or the Apache License Version 2.0.
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
  * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
@@ -21,6 +22,9 @@ import javassist.compiler.CompileError;
  * Conditional expression.
  */
 public class CondExpr extends ASTList {
+    /** default serialVersionUID */
+    private static final long serialVersionUID = 1L;
+
     public CondExpr(ASTree cond, ASTree thenp, ASTree elsep) {
         super(cond, new ASTList(thenp, new ASTList(elsep)));
     }
@@ -37,7 +41,9 @@ public class CondExpr extends ASTList {
 
     public void setElse(ASTree t) { tail().tail().setHead(t); } 
 
+    @Override
     public String getTag() { return "?:"; }
 
+    @Override
     public void accept(Visitor v) throws CompileError { v.atCondExpr(this); }
 }
