@@ -67,6 +67,10 @@ final class DirClassPath implements ClassPath {
 
     public void close() {}
 
+    public String getResource(String className) {
+        return find(className) != null ? directory : null;
+    }
+
     public String toString() {
         return directory;
     }
@@ -109,6 +113,16 @@ final class JarDirClassPath implements ClassPath {
                     return url;
             }
 
+        return null;    // not found
+    }
+
+    public String getResource(String classname) {
+        if (jars != null)
+            for (int i = 0; i < jars.length; i++) {
+                String res = jars[i].getResource(classname);
+                if (res != null)
+                    return res;
+            }
         return null;    // not found
     }
 
@@ -160,6 +174,10 @@ final class JarClassPath implements ClassPath {
             catch (MalformedURLException e) {}
 
         return null;            // not found
+    }
+
+    public String getResource(String classname) {
+        return find(classname) != null ? jarfile.getName() : null;
     }
 
     public void close() {
@@ -376,6 +394,23 @@ final class ClassPoolTail {
         return null;
     }
 
+    public String getResource(String classname) {
+        if (packages.get(classname) != null)
+            return null;
+
+        ClassPathList list = pathList;
+        String res = null;
+        while (list != null) {
+            res = list.path.getResource(classname);
+            if (res == null)
+                list = list.next;
+            else
+                return res;
+        }
+
+        return null;
+    }
+
     /**
      * Reads from an input stream until it reaches the end.
      *
@@ -439,4 +474,5 @@ final class ClassPoolTail {
 
         throw new IOException("too much data");
     }
+
 }

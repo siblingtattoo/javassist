@@ -663,7 +663,7 @@ public class CodeIterator implements Opcode {
      * @param code      the bytecode appended.
      * @return  the position of the first byte of the appended bytecode.
      */
-    public int append(byte[] code) {
+    public int append(byte[] code) throws BadBytecode {
         int size = getCodeLength();
         int len = code.length;
         if (len <= 0)
@@ -682,7 +682,7 @@ public class CodeIterator implements Opcode {
      *
      * @param gapLength            gap length
      */
-    public void appendGap(int gapLength) {
+    public void appendGap(int gapLength) throws BadBytecode {
         byte[] code = bytecode;
         int codeLength = code.length;
         byte[] newcode = new byte[codeLength + gapLength];

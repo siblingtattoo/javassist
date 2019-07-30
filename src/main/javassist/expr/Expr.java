@@ -43,6 +43,7 @@ import java.util.LinkedList;
  */
 public abstract class Expr implements Opcode {
     int currentPos;
+	int adjustedPos;
     CodeIterator iterator;
     CtClass thisClass;
     MethodInfo thisMethod;
@@ -54,8 +55,9 @@ public abstract class Expr implements Opcode {
     /**
      * Undocumented constructor. Do not use; internal-use only.
      */
-    protected Expr(int pos, CodeIterator i, CtClass declaring, MethodInfo m) {
+    protected Expr(int pos, int pos2, CodeIterator i, CtClass declaring, MethodInfo m) {
         currentPos = pos;
+		adjustedPos = pos2;
         iterator = i;
         thisClass = declaring;
         thisMethod = m;
@@ -184,6 +186,10 @@ public abstract class Expr implements Opcode {
      */
     public int indexOfBytecode() {
         return currentPos;
+    }
+
+	public int indexOfOriginalBytecode() {
+        return adjustedPos;
     }
 
     /**

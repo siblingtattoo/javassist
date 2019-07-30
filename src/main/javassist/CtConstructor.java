@@ -280,6 +280,8 @@ public final class CtConstructor extends CtBehavior {
      * super() and this() must not be in a try statement.
      */
     int getStartPosOfBody(CodeAttribute ca) throws CannotCompileException {
+		return 0;
+/*
         CodeIterator ci = ca.iterator();
         try {
             ci.skipConstructor();
@@ -288,6 +290,7 @@ public final class CtConstructor extends CtBehavior {
         catch (BadBytecode e) {
             throw new CannotCompileException(e);
         }
+*/
     }
 
     /**

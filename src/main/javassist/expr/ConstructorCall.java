@@ -32,8 +32,8 @@ public class ConstructorCall extends MethodCall {
     /**
      * Undocumented constructor.  Do not use; internal-use only.
      */
-    protected ConstructorCall(int pos, CodeIterator i, CtClass decl, MethodInfo m) {
-        super(pos, i, decl, m);
+    protected ConstructorCall(int pos, int adjustedPos, CodeIterator i, CtClass decl, MethodInfo m) {
+        super(pos, adjustedPos, i, decl, m);
     }
 
     /**
